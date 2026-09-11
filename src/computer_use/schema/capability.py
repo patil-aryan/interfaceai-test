@@ -15,7 +15,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 SCHEMA_VERSION = "1.0"
 
@@ -187,6 +187,32 @@ Locator = Annotated[
 ]
 
 
+class RegionScope(BaseModel):
+    """Search only inside a named landmark, e.g. the Member Search panel."""
+
+    kind: Literal["region"] = "region"
+    role: str
+    name: str
+
+
+class ContainerWithTextScope(BaseModel):
+    """Search only inside the container holding this text.
+
+    The text may be bound to an input parameter, which is how a step targets
+    "the SELECT link in the row for the member number I was given".
+    """
+
+    kind: Literal["container_with_text"] = "container_with_text"
+    container_role: str = "row"  # row, listitem, group, cell, region
+    text: ValueSource
+
+
+Scope = Annotated[
+    Union[RegionScope, ContainerWithTextScope],
+    Field(discriminator="kind"),
+]
+
+
 class ElementTarget(BaseModel):
     """How to find one control, with fallbacks, ordered best-first.
 
@@ -197,7 +223,7 @@ class ElementTarget(BaseModel):
 
     description: str  # human-readable, for review and for failure messages
     frame: list[str] = Field(default_factory=list)  # frame path for framesets
-    scope: RoleNameLocator | None = None  # containing landmark, if any
+    scope: Scope | None = None  # narrow the search to a container, if any
     strategies: list[Locator]
     recorded_strategy: str
     nth: int = 0  # disambiguator when several controls match
@@ -304,6 +330,10 @@ class InputParam(BaseModel):
     values: list[str] | None = None  # allowed values for enum inputs
     example: str | None = None  # shown in the agent-facing catalog
 
+    # True only for identifiers that select exactly one record. A surname never
+    # qualifies; a member number does.
+    unique_key: bool = False
+
 
 class OutputField(BaseModel):
     name: str
@@ -396,3 +426,15 @@ class CapabilityArtifact(BaseModel):
 
     provenance: Provenance
     stability: Stability = Field(default_factory=Stability)
+
+    @model_validator(mode="after")
+    def _irreversible_needs_unique_key(self) -> "CapabilityArtifact":
+        if self.risk_tier is RiskTier.IRREVERSIBLE_WRITE and not any(
+            i.unique_key for i in self.inputs
+        ):
+            raise ValueError(
+                "an irreversible capability must declare at least one input with "
+                "unique_key=True; acting on a non-unique identifier such as a "
+                "surname risks operating on the wrong record"
+            )
+        return self
