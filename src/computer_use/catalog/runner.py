@@ -12,7 +12,7 @@ from computer_use.replay.engine import ReplayEngine
 from computer_use.schema.capability import CapabilityArtifact
 from computer_use.schema.profile import load_app_profile
 from computer_use.schema.result import ReplayResult
-from computer_use.surfaces.web import WebSurface
+from computer_use.surfaces import build_surface
 
 
 async def invoke(
@@ -36,7 +36,7 @@ async def invoke(
     """
     run_id = f"run_{uuid.uuid4().hex[:10]}"
     profile = load_app_profile(artifact.app_profile)
-    surface = WebSurface(headless=not headed, slow_mo_ms=slow_mo_ms)
+    surface = build_surface(profile, headed=headed, slow_mo_ms=slow_mo_ms)
     await surface.start()
     try:
         engine = ReplayEngine(

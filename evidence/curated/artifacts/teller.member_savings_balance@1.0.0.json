@@ -1,0 +1,473 @@
+{
+  "schema_version": "1.0",
+  "id": "teller.member_savings_balance",
+  "version": "1.0.0",
+  "title": "Read a member's savings balance from the teller terminal",
+  "description": "Signs into the green screen teller application, takes member inquiry from the main menu, looks a member up by number and reports their name, status and savings balance.",
+  "app_profile": "meridian-teller@8.4",
+  "status": "approved",
+  "risk_tier": "read_only",
+  "requires_authenticated_session": true,
+  "inputs": [
+    {
+      "name": "member_number",
+      "type": "string",
+      "required": true,
+      "description": "The member's six digit number.",
+      "sensitivity": "pii",
+      "pattern": "^[0-9]{6}$",
+      "values": null,
+      "example": "100234",
+      "unique_key": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "member_name",
+      "type": "string",
+      "description": "Full name as held on file.",
+      "sensitivity": "pii",
+      "values": null
+    },
+    {
+      "name": "member_status",
+      "type": "enum",
+      "description": "Membership status.",
+      "sensitivity": "internal",
+      "values": [
+        "ACTIVE",
+        "DORMANT",
+        "RESTRICTED"
+      ]
+    },
+    {
+      "name": "savings_balance",
+      "type": "decimal",
+      "description": "Balance on the savings account.",
+      "sensitivity": "pii",
+      "values": null
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "intent": "Return to the main menu.",
+      "action": "navigate",
+      "target": null,
+      "value": {
+        "kind": "literal",
+        "value": "/main-menu"
+      },
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "MAIN MENU",
+          "frame": []
+        },
+        "timeout_ms": 5000,
+        "description": "the main menu is on screen"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s2",
+      "intent": "Type option 1 for member inquiry.",
+      "action": "fill",
+      "target": {
+        "description": "OPTION entry field",
+        "frame": [],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "label",
+            "text": "OPTION"
+          },
+          {
+            "strategy": "grid",
+            "row": 8,
+            "column": 20,
+            "length": 2
+          }
+        ],
+        "recorded_strategy": "label",
+        "nth": 0
+      },
+      "value": {
+        "kind": "literal",
+        "value": "1"
+      },
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "value_equals",
+          "target": {
+            "description": "OPTION entry field",
+            "frame": [],
+            "scope": null,
+            "strategies": [
+              {
+                "strategy": "label",
+                "text": "OPTION"
+              },
+              {
+                "strategy": "grid",
+                "row": 8,
+                "column": 20,
+                "length": 2
+              }
+            ],
+            "recorded_strategy": "label",
+            "nth": 0
+          },
+          "expected": {
+            "kind": "literal",
+            "value": "1"
+          }
+        },
+        "timeout_ms": 5000,
+        "description": "the option field holds 1"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s3",
+      "intent": "Transmit the menu selection.",
+      "action": "activate",
+      "target": {
+        "description": "OPTION entry field",
+        "frame": [],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "label",
+            "text": "OPTION"
+          },
+          {
+            "strategy": "grid",
+            "row": 8,
+            "column": 20,
+            "length": 2
+          }
+        ],
+        "recorded_strategy": "label",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "MEMBER INQUIRY",
+          "frame": []
+        },
+        "timeout_ms": 5000,
+        "description": "the member inquiry screen is on screen"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s4",
+      "intent": "Type the member number.",
+      "action": "fill",
+      "target": {
+        "description": "MEMBER ID entry field",
+        "frame": [],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "label",
+            "text": "MEMBER ID"
+          },
+          {
+            "strategy": "grid",
+            "row": 4,
+            "column": 20,
+            "length": 6
+          }
+        ],
+        "recorded_strategy": "label",
+        "nth": 0
+      },
+      "value": {
+        "kind": "param",
+        "param": "member_number"
+      },
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "value_equals",
+          "target": {
+            "description": "MEMBER ID entry field",
+            "frame": [],
+            "scope": null,
+            "strategies": [
+              {
+                "strategy": "label",
+                "text": "MEMBER ID"
+              },
+              {
+                "strategy": "grid",
+                "row": 4,
+                "column": 20,
+                "length": 6
+              }
+            ],
+            "recorded_strategy": "label",
+            "nth": 0
+          },
+          "expected": {
+            "kind": "param",
+            "param": "member_number"
+          }
+        },
+        "timeout_ms": 5000,
+        "description": "the field holds the member number supplied"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s5",
+      "intent": "Transmit the search.",
+      "action": "activate",
+      "target": {
+        "description": "MEMBER ID entry field",
+        "frame": [],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "label",
+            "text": "MEMBER ID"
+          },
+          {
+            "strategy": "grid",
+            "row": 4,
+            "column": 20,
+            "length": 6
+          }
+        ],
+        "recorded_strategy": "label",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "MEMBER PROFILE",
+          "frame": []
+        },
+        "timeout_ms": 5000,
+        "description": "the member profile is on screen"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s6",
+      "intent": "Read the member's name.",
+      "action": "read",
+      "target": {
+        "description": "member name value",
+        "frame": [],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "label",
+            "text": "NAME"
+          },
+          {
+            "strategy": "grid",
+            "row": 4,
+            "column": 22,
+            "length": 20
+          }
+        ],
+        "recorded_strategy": "label",
+        "nth": 0
+      },
+      "value": null,
+      "output": "member_name",
+      "checkpoint": null,
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s7",
+      "intent": "Read the membership status.",
+      "action": "read",
+      "target": {
+        "description": "membership status value",
+        "frame": [],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "label",
+            "text": "STATUS"
+          },
+          {
+            "strategy": "grid",
+            "row": 3,
+            "column": 56,
+            "length": 12
+          }
+        ],
+        "recorded_strategy": "label",
+        "nth": 0
+      },
+      "value": null,
+      "output": "member_status",
+      "checkpoint": null,
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s8",
+      "intent": "Read the savings balance.",
+      "action": "read",
+      "target": {
+        "description": "savings balance cell",
+        "frame": [],
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "SAVINGS"
+          }
+        },
+        "strategies": [
+          {
+            "strategy": "grid",
+            "row": 0,
+            "column": 42,
+            "length": 10
+          }
+        ],
+        "recorded_strategy": "grid",
+        "nth": 0
+      },
+      "value": null,
+      "output": "savings_balance",
+      "checkpoint": null,
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": false
+    }
+  ],
+  "success_condition": {
+    "condition": {
+      "kind": "value_equals",
+      "target": {
+        "description": "displayed member number",
+        "frame": [],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "label",
+            "text": "MEMBER ID"
+          },
+          {
+            "strategy": "grid",
+            "row": 3,
+            "column": 22,
+            "length": 10
+          }
+        ],
+        "recorded_strategy": "label",
+        "nth": 0
+      },
+      "expected": {
+        "kind": "param",
+        "param": "member_number"
+      }
+    },
+    "timeout_ms": 5000,
+    "description": "the profile on screen is the member that was requested"
+  },
+  "outcomes": [
+    {
+      "code": "MEMBER_NOT_FOUND",
+      "description": "No member exists with that number.",
+      "detector": {
+        "kind": "text_present",
+        "text": "NO MEMBER MATCHING",
+        "frame": []
+      },
+      "terminal": true,
+      "at_step": null
+    },
+    {
+      "code": "NO_SAVINGS_ACCOUNT",
+      "description": "The member holds no savings account.",
+      "detector": {
+        "kind": "element_absent",
+        "target": {
+          "description": "savings balance cell",
+          "frame": [],
+          "scope": {
+            "kind": "container_with_text",
+            "container_role": "row",
+            "text": {
+              "kind": "literal",
+              "value": "SAVINGS"
+            }
+          },
+          "strategies": [
+            {
+              "strategy": "grid",
+              "row": 0,
+              "column": 42,
+              "length": 10
+            }
+          ],
+          "recorded_strategy": "grid",
+          "nth": 0
+        }
+      },
+      "terminal": true,
+      "at_step": "s8"
+    }
+  ],
+  "provenance": {
+    "goal": "Look up a member by number on the teller terminal and read their savings balance",
+    "discovery_run_id": "hand-written-terminal-v1",
+    "model": "none (hand written, to prove the schema and engine are not web shaped)",
+    "recorded_at": "2026-09-11T19:32:49.558160Z",
+    "recorded_against_institution": "pinecrest-cu",
+    "surface_kind": "terminal"
+  },
+  "stability": {
+    "replays": 0,
+    "successes": 0,
+    "last_verified_at": null,
+    "degradations_seen": 0
+  }
+}

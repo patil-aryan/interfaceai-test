@@ -1,0 +1,21 @@
+{
+  "capability_id": "teller.member_savings_balance",
+  "capability_version": "1.0.0",
+  "run_id": "run_db41786bd2",
+  "institution": "pinecrest-cu",
+  "started_at": "2026-09-11T19:33:41.477187Z",
+  "finished_at": "2026-09-11T19:33:41.480253Z",
+  "duration_ms": 2,
+  "steps_total": 8,
+  "steps_completed": 8,
+  "degradations": [],
+  "recoveries": [],
+  "control_events": [],
+  "evidence_dir": "evidence/curated/replay-terminal/run_db41786bd2",
+  "status": "success",
+  "outputs": {
+    "member_name": "ELEANOR R VANCE",
+    "member_status": "ACTIVE",
+    "savings_balance": "4182.55"
+  }
+}

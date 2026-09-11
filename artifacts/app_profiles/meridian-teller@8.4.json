@@ -1,0 +1,89 @@
+{
+  "id": "meridian-teller@8.4",
+  "vendor": "Meridian Systems",
+  "surface_kind": "terminal",
+  "sign_on": {
+    "path": "/sign-on",
+    "username_field": {
+      "description": "USER ID field",
+      "frame": [],
+      "scope": null,
+      "strategies": [
+        {
+          "strategy": "label",
+          "text": "USER ID"
+        },
+        {
+          "strategy": "grid",
+          "row": 5,
+          "column": 20,
+          "length": 10
+        }
+      ],
+      "recorded_strategy": "label",
+      "nth": 0
+    },
+    "password_field": {
+      "description": "PASSWORD field",
+      "frame": [],
+      "scope": null,
+      "strategies": [
+        {
+          "strategy": "label",
+          "text": "PASSWORD"
+        },
+        {
+          "strategy": "grid",
+          "row": 7,
+          "column": 20,
+          "length": 10
+        }
+      ],
+      "recorded_strategy": "label",
+      "nth": 0
+    },
+    "submit": {
+      "description": "the ENTER key, which transmits the sign on screen",
+      "frame": [],
+      "scope": null,
+      "strategies": [
+        {
+          "strategy": "grid",
+          "row": 5,
+          "column": 20,
+          "length": 10
+        }
+      ],
+      "recorded_strategy": "grid",
+      "nth": 0
+    },
+    "success": {
+      "kind": "text_present",
+      "text": "MAIN MENU",
+      "frame": []
+    }
+  },
+  "known_screens": [
+    {
+      "name": "sign on screen returned mid flow",
+      "detector": {
+        "kind": "url_matches",
+        "pattern": "/sign-on$"
+      },
+      "classification": "session_lost",
+      "recovery": null,
+      "dismiss": null
+    },
+    {
+      "name": "option not available to this operator",
+      "detector": {
+        "kind": "text_present",
+        "text": "OPTION NOT AVAILABLE",
+        "frame": []
+      },
+      "classification": "permission_denied",
+      "recovery": null,
+      "dismiss": null
+    }
+  ]
+}

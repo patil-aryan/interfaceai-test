@@ -1,0 +1,25 @@
+{
+  "name": "local-teller",
+  "hosts": [
+    "meridian"
+  ],
+  "routes": [
+    "/sign-on",
+    "/main-menu",
+    "/member-inquiry",
+    "/member-profile"
+  ],
+  "actions": [
+    "navigate",
+    "fill",
+    "activate",
+    "select",
+    "press",
+    "read",
+    "wait_for",
+    "assert",
+    "dismiss"
+  ],
+  "allow_irreversible": false,
+  "require_approval_for_unattended": true
+}

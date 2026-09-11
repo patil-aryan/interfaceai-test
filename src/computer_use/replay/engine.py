@@ -10,7 +10,6 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
 
 from pydantic import BaseModel, Field
 
@@ -308,7 +307,7 @@ class ReplayEngine:
             return None
         url = None
         if step.action is Action.NAVIGATE:
-            url = urljoin(self._base_url, resolve_value(step.value, params))
+            url = self._surface.absolute(self._base_url, resolve_value(step.value, params))
         decision = self._policy.check_step(step, url)
         if decision.allowed:
             return None
@@ -601,7 +600,7 @@ class ReplayEngine:
         if sign_on is None or self._credentials is None:
             return False
         user, password = self._credentials
-        await self._surface.navigate(urljoin(self._base_url, sign_on.path))
+        await self._surface.navigate(self._surface.absolute(self._base_url, sign_on.path))
         for target, value in (
             (sign_on.username_field, user), (sign_on.password_field, password)
         ):
@@ -770,7 +769,7 @@ class ReplayEngine:
         surface, action = self._surface, step.action
 
         if action is Action.NAVIGATE:
-            await surface.navigate(urljoin(self._base_url, resolve_value(step.value, params)))
+            await surface.navigate(self._surface.absolute(self._base_url, resolve_value(step.value, params)))
             return
 
         if action in (Action.WAIT_FOR, Action.ASSERT):

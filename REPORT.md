@@ -139,15 +139,40 @@ account.
 
 ## 4. Heterogeneity and multi-tenant
 
-**Surface abstraction.** `Surface` is an abstract class owning policy, with one
-implementation owning mechanism. The base class owns the fallback order, the
+**Surface abstraction.** `Surface` is an abstract class owning policy, with two
+implementations owning mechanism. The base class owns the fallback order, the
 definition of degradation, the retry deadline and the settle rule; subclasses
 implement locate, act and observe. The engine imports `Surface`, never
-Playwright, and contains no mention of a browser or a DOM. A terminal surface
-implements `_locate` for `grid` and raises for `structural`; the chain skips a
-rung a surface cannot express rather than failing, so one artifact can carry
-strategies for several surfaces. Perception is the accessibility tree, which
-exists on desktop platforms too, rather than the DOM, which does not.
+Playwright, and contains no mention of a browser or a DOM.
+
+This is demonstrated rather than argued. The second surface is a 24x80 character
+screen with no markup, no roles and no accessibility tree, where the only
+address an element has is where it sits. The same engine replays a capability
+against it with no change: an application profile declares its `surface_kind`
+and the provider is built from that. The concepts carry over intact.
+
+| Web | Character screen |
+|---|---|
+| role and accessible name | the caption to the left of a value |
+| the row containing this text | the screen line containing this text |
+| CSS path, then coordinates | `grid`, a row and a column |
+| a URL, judged by the allowlist | a screen name, judged by the same allowlist |
+
+The chain behaves the same way on both. Renaming a caption on the green screen
+makes the `label` strategy miss, `grid` fires instead, and the result reports a
+degradation: the capability still works and is decaying, which is exactly what
+it reports on the web.
+
+Building it found one real leak. The engine composed addresses with `urljoin`, a
+web habit, which blocked the first terminal run at its own allowlist. Address
+composition now belongs to the surface. That is the value of writing the second
+implementation rather than only designing for it: the corner was there and the
+argument had not found it.
+
+Perception is the accessibility tree on the web, which exists on desktop
+platforms too, rather than the DOM, which does not. Discovery is not yet wired
+to the terminal, because the model-facing tool vocabulary is written in roles
+and names; the terminal artifact is hand-written, and that is a cut.
 
 **Multi-tenant.** The fixture serves two institutions running the same product
 at different versions, with different wording: `MEMBER ID` against
@@ -230,11 +255,10 @@ Deliberately left out, each at a seam that exists:
 
 - **The institution override layer.** Designed, directory present, not merged at
   load time. The fixture already serves the second tenant to build against.
-- **A second surface.** The abstraction is exercised only by one implementation,
-  which is the honest limit of the claim.
+- **Discovery on the character screen.** The second surface replays, but the
+  model-facing tool vocabulary is written in roles and names, so nothing
+  discovers against it yet and its capability is hand-written.
 - **A real operator console.** The handoff is two files and a terminal.
-- **An agent-facing catalog.** Artifacts are invoked by id on the command line;
-  exposing them as a tool schema is mechanical from the contract already there.
 - **Multi-run stability scoring.** The `stability` block exists on every artifact
   and nothing updates it.
 - **Outcome triggers the model cannot supply.** An outcome that cannot be
@@ -243,6 +267,6 @@ Deliberately left out, each at a seam that exists:
 
 What I would build next, in order: the institution override layer, because it is
 the claim the brief presses hardest on and the fixture is already built for it;
-then the agent-facing catalog, because the typed contract makes it nearly free;
-then stability scoring, because approval should be earned by evidence rather
-than asserted.
+then a target vocabulary the model can use on a character screen, so the second
+surface is discovered against rather than hand-written; then stability scoring,
+because approval should be earned by evidence rather than asserted.

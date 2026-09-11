@@ -18,6 +18,7 @@ moment of failure.
 | `replay-policy-blocked/` | an irreversible capability refused by the allowlist before a browser did anything |
 | `replay-deposit-rejected/` | an opening deposit below the product minimum. A business outcome, detected by wording confirmed against the running application |
 | `replay-write-committed/` | the same capability permitted, opening a real sub-account for a member it was not recorded against |
+| `replay-terminal/` | the same schema and the same engine driving a 24x80 character screen instead of a browser. No markup, no roles, no accessibility tree, and no engine change |
 | `artifacts/` | the compiled capabilities, the typed contracts they came from, and the app profile |
 
 ## Telling the two kinds of run apart from the log alone

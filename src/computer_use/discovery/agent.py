@@ -8,7 +8,6 @@ import uuid
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
 
 from pydantic import BaseModel, Field
 
@@ -367,7 +366,7 @@ class DiscoveryAgent:
         surface = self._surface
 
         if action is Action.NAVIGATE:
-            await surface.navigate(urljoin(self._base_url, args["path"]))
+            await surface.navigate(surface.absolute(self._base_url, args["path"]))
             return RecordedStep(action=action, intent=intent, value=args["path"])
 
         if action is Action.WAIT_FOR:
@@ -502,7 +501,8 @@ class DiscoveryAgent:
 
         decision = self._policy.check_action(action)
         if decision.allowed and action is Action.NAVIGATE:
-            decision = self._policy.check_url(urljoin(self._base_url, args.get("path", "")))
+            decision = self._policy.check_url(
+                self._surface.absolute(self._base_url, args.get("path", "")))
         if decision.allowed:
             return None
         rec.emit(EventType.POLICY_BLOCKED, f"Refused: {action.value}", level=Level.ERROR,

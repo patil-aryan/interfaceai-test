@@ -6,6 +6,7 @@ import asyncio
 import time
 from abc import ABC, abstractmethod
 from typing import Any
+from urllib.parse import urljoin
 
 from pydantic import BaseModel, Field
 
@@ -266,6 +267,15 @@ class Surface(ABC):
         container may be found by one, because the compiler turns it back into
         the parameter it came from and replay substitutes its own value.
         """
+
+    def absolute(self, base_url: str, path: str) -> str:
+        """Turn a recorded path into the address this surface understands.
+
+        Joining a path onto a base is a web habit, and it was quietly built into
+        the replay engine until a character screen had to run the same artifact.
+        A surface whose locations are not URLs overrides this.
+        """
+        return urljoin(base_url, path)
 
     @abstractmethod
     async def current_urls(self) -> list[str]:

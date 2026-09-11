@@ -137,7 +137,26 @@ The browser stays open and is the operator's while the request is open. It is
 the same session, with the same cookies, on the same screen. Answering `resume`
 hands it back and the run continues from where it stopped.
 
-**7. See what an AI agent sees, and watch one call a capability.** This is what
+**7. Run the same schema against a surface with no markup at all.** The teller
+terminal is 24 lines of 80 characters. There is no DOM, no roles, no
+accessibility tree, and the only address an element has is where it sits.
+
+```bash
+.venv/bin/python -m computer_use.replay teller.member_savings_balance \
+  --param member_number=100234 \
+  --allowlist allowlist.terminal.json --base-url "teller://meridian"
+#   success  ELEANOR R VANCE  ACTIVE  4182.55
+```
+
+Add `--headed --slow 300` to watch it, which prints each screen as it is
+painted. It is the character-screen equivalent of opening the browser.
+
+Nothing in the replay engine changed to make that work. The application's
+profile declares `surface_kind: terminal`, and the CLI builds the provider that
+matches. A screen's name is its route, so the allowlist constrains which screens
+automation may reach exactly as it constrains URLs on the web.
+
+**8. See what an AI agent sees, and watch one call a capability.** This is what
 the whole system is for: an agent that cannot read a screen, invoking a saved
 capability by name with typed arguments.
 
@@ -200,7 +219,7 @@ cannot, which is how permission denial is demonstrated.
 ```
 src/computer_use/
   schema/          the artifact, the result contract, one log line, the app profile
-  surfaces/        the perceive-and-act seam, and its one browser implementation
+  surfaces/        the perceive-and-act seam, over a browser and a character screen
   discovery/       the model-driven loop, the contract, the compiler, verification
   replay/          the deterministic engine and its command line
   catalog/         saved capabilities, offered to an agent as callable tools
@@ -213,7 +232,8 @@ artifacts/
   capabilities/    compiled artifacts, replayable
   app_profiles/    per-product knowledge: sign-on, and screens that mean something
 
-fake_core_banking_app/   the target. A fixture, not part of the system.
+fake_core_banking_app/   the legacy web target. A fixture, not part of the system.
+fake_core_teller/        the same bank on a 24x80 green screen. Also a fixture.
 evidence/                one directory per run
 allowlist.json           what the system is permitted to do
 ```

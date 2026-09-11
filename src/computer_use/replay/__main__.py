@@ -23,8 +23,8 @@ from computer_use.guardrails.policy import DEFAULT_ALLOWLIST_PATH, load_allowlis
 from computer_use.replay.engine import ReplayEngine
 from computer_use.schema.capability import CapabilityArtifact
 from computer_use.schema.profile import AppProfile, load_app_profile
+from computer_use.surfaces import build_surface
 from computer_use.surfaces.base import Surface
-from computer_use.surfaces.web import WebSurface
 
 CAPABILITY_DIR = Path("artifacts/capabilities")
 
@@ -77,7 +77,7 @@ async def replay(args: argparse.Namespace) -> int:
     run_id = f"run_{uuid.uuid4().hex[:10]}"
     handoff = HandoffBroker(Path(args.evidence_dir) / run_id, wait_seconds=args.operator_wait)
     profile = load_app_profile(artifact.app_profile)
-    surface = WebSurface(headless=not args.headed, slow_mo_ms=args.slow)
+    surface = build_surface(profile, headed=args.headed, slow_mo_ms=args.slow)
     await surface.start()
     try:
         engine = ReplayEngine(
