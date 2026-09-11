@@ -63,7 +63,12 @@ def verdict(result: dict, expect: dict[str, str]) -> tuple[bool, str]:
         got["code"] = result.get("code")
     if "classification" in expect:
         got["classification"] = (result.get("failure") or {}).get("classification")
-    for name in [k for k in expect if k not in ("status", "code", "classification")]:
+    if "recovery" in expect:
+        got["recovery"] = next(
+            (r["kind"] for r in result.get("recoveries", [])
+             if r["kind"] == expect["recovery"]), None)
+    for name in [k for k in expect
+                 if k not in ("status", "code", "classification", "recovery")]:
         got[name] = (result.get("outputs") or {}).get(name)
     wrong = {k: (v, got.get(k)) for k, v in expect.items() if got.get(k) != v}
     if wrong:
@@ -142,8 +147,9 @@ def fault_checks() -> list[tuple[str, dict, Check]]:
          Check("runtime: recovered interstitial", lookup, status="success")),
         ("a notice that will not clear", {"maintenance_interstitial": True},
          Check("runtime: unrecoverable interstitial", lookup, status="failed")),
-        ("the session dying mid flow", {"expire_after_requests": 3},
-         Check("runtime: re-authenticated mid flow", lookup, status="success")),
+        ("the session dying mid flow", {"expire_after_requests": 4},
+         Check("runtime: re-authenticated mid flow", lookup,
+               status="success", recovery="reauthenticated")),
         ("the product's own error screen", {"app_error": True},
          Check("runtime: application error", lookup,
                status="failed", classification="app_error")),

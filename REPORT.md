@@ -55,7 +55,7 @@ flowchart TB
 ```
 
 The same drawing is at
-[excalidraw.com](https://excalidraw.com/#json=Wg5kkh_EieBgmpXVEqtWZ,Ch1wFCB3P-OmAA8wDy9jjQ),
+[excalidraw.com](https://excalidraw.com/#json=UimXYH_iRL6zu8750jYhL,jZP4KDYpCrCRQYiQijt_XQ),
 and in `architecture.excalidraw` in this repository.
 
 Five decisions do most of the work.

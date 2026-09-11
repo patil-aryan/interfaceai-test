@@ -63,6 +63,23 @@ compiled into artifacts that replay with no model involved.
 
 ---
 
+## Demoing it
+
+There is a beat-by-beat runbook in [DEMO.md](DEMO.md), and a runner so nothing
+long has to be typed in front of people.
+
+```bash
+.venv/bin/python -m fake_core_banking_app.app     # terminal 1, leave it running
+.venv/bin/python scripts/demo.py                  # lists 15 beats
+.venv/bin/python scripts/demo.py 7 --watch        # runs one, with the browser open
+```
+
+Each beat says what it is showing, prints the command it is about to run, and
+runs it. Faults are injected and cleared for you. The ten minute version is
+beats 1, 4, 7, 8, 10, 12 and 13.
+
+---
+
 ## Prove all of it in one command
 
 ```bash
@@ -189,7 +206,7 @@ curl -s -X POST http://127.0.0.1:8081/_faults -d "clear=1"
 
 ## Architecture
 
-[The system diagram](https://excalidraw.com/#json=Wg5kkh_EieBgmpXVEqtWZ,Ch1wFCB3P-OmAA8wDy9jjQ)
+[The system diagram](https://excalidraw.com/#json=UimXYH_iRL6zu8750jYhL,jZP4KDYpCrCRQYiQijt_XQ)
 shows the discovery loop step by step, the eight passes that turn a recorded run
 into a program, the replay engine, and the seam both surfaces sit behind. The
 same drawing is in `architecture.excalidraw`, and it renders inline at the top
@@ -411,6 +428,7 @@ artifacts/
 fake_core_banking_app/   the legacy web target. A fixture, not part of the system.
 fake_core_teller/        the same bank on a 24x80 green screen. Also a fixture.
 evidence/                one directory per run
+scripts/demo.py          the demo, one beat at a time
 scripts/end_to_end.py    runs every flow and checks what each one returns
 architecture.excalidraw  the system diagram
 allowlist.json           what the system is permitted to do

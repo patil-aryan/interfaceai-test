@@ -1,0 +1,29 @@
+{
+  "name": "locked-down",
+  "hosts": [
+    "127.0.0.1:8081",
+    "localhost:8081",
+    "meridian"
+  ],
+  "routes": [
+    "/",
+    "/login",
+    "/banner",
+    "/nav",
+    "/work",
+    "/members/inquiry"
+  ],
+  "actions": [
+    "navigate",
+    "fill",
+    "activate",
+    "select",
+    "press",
+    "read",
+    "wait_for",
+    "assert",
+    "dismiss"
+  ],
+  "allow_irreversible": false,
+  "require_approval_for_unattended": true
+}
