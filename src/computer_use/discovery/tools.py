@@ -9,43 +9,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from computer_use.schema.capability import (
-    Action,
-    ContainerWithTextScope,
-    ElementTarget,
-    LiteralValue,
-    RoleLocator,
-    RoleNameLocator,
-)
+from computer_use.schema.capability import Action
+from computer_use.surfaces.base import TargetVocabulary
 
 FINISH = "done"
-
-_ELEMENT_PROPERTIES: dict[str, Any] = {
-    "role": {
-        "type": "string",
-        "description": "Accessible role exactly as the snapshot shows it: "
-                       "textbox, button, link, cell, row, checkbox, combobox.",
-    },
-    "name": {
-        "type": "string",
-        "description": "Accessible name, the quoted text after the role in the "
-                       "snapshot. Omit only when the element has no name.",
-    },
-    "frame": {
-        "type": "string",
-        "description": "Which frame the element is in, as titled in the "
-                       "observation. Use an empty string for the main document.",
-    },
-    "within_row": {
-        "type": "string",
-        "description": "Optional. Text identifying the row the element sits in. "
-                       "Use this when several elements share a role and name.",
-    },
-    "nth": {
-        "type": "integer",
-        "description": "Optional, zero-based. Which match to use when more than one fits.",
-    },
-}
 
 _INTENT = {
     "type": "string",
@@ -66,14 +33,26 @@ def _tool(name: str, description: str, properties: dict[str, Any], required: lis
     }
 
 
-def _element_tool(name: str, description: str, extra: dict[str, Any] | None = None,
-                  extra_required: list[str] | None = None) -> dict:
-    return _tool(name, description, {**_ELEMENT_PROPERTIES, **(extra or {})},
-                 ["role", "frame", *(extra_required or [])])
+def tool_definitions(output_names: list[str], vocabulary: TargetVocabulary) -> list[dict]:
+    """The tools handed to the model for one discovery run.
 
+    The verbs are the same on every surface, because they are the same verbs the
+    artifact and the replay engine use. Only the words for naming a control come
+    from the surface, which is the one part that cannot be shared.
+    """
+    def _element_tool(name: str, description: str, extra: dict[str, Any] | None = None,
+                      extra_required: list[str] | None = None) -> dict:
+        return _tool(name, description, {**vocabulary.properties, **(extra or {})},
+                     [*vocabulary.required, *(extra_required or [])])
 
-def tool_definitions(output_names: list[str]) -> list[dict]:
-    """The tools handed to the model for one discovery run."""
+    wait_properties: dict[str, Any] = {
+        "text": {"type": "string", "description": "Text that must appear."}
+    }
+    wait_required = ["text"]
+    if "frame" in vocabulary.properties:
+        wait_properties["frame"] = vocabulary.properties["frame"]
+        wait_required.append("frame")
+
     return [
         _tool(
             Action.NAVIGATE.value,
@@ -114,11 +93,8 @@ def tool_definitions(output_names: list[str]) -> list[dict]:
         _tool(
             Action.WAIT_FOR.value,
             "Wait until a piece of text appears. Use this when a screen is still loading.",
-            {
-                "text": {"type": "string", "description": "Text that must appear."},
-                "frame": _ELEMENT_PROPERTIES["frame"],
-            },
-            ["text", "frame"],
+            wait_properties,
+            wait_required,
         ),
         _element_tool(
             Action.READ.value,
@@ -155,45 +131,9 @@ def tool_definitions(output_names: list[str]) -> list[dict]:
                         "type": "string",
                         "description": "For text_present: the text that must be on screen.",
                     },
-                    **_ELEMENT_PROPERTIES,
+                    **vocabulary.properties,
                 },
-                "required": ["summary", "proof_kind", "frame"],
+                "required": ["summary", "proof_kind", *vocabulary.required],
             },
         },
     ]
-
-
-def frame_path(value: str | None) -> list[str]:
-    """Turn the model's frame string into the frame path the surface expects."""
-    if not value or value in (".", "/", "main"):
-        return []
-    return [part for part in value.split("/") if part]
-
-
-def lookup_target(args: dict[str, Any], description: str) -> ElementTarget:
-    """A throwaway target for finding the element once, right now.
-
-    Deliberately not what gets recorded. The model describes the control well
-    enough to reach it in the current page; `Surface.describe_target` then
-    harvests the chain that goes into the artifact. Keeping these apart is what
-    stops the model's guess about robustness becoming the capability's.
-    """
-    role = args["role"]
-    name = args.get("name")
-    strategies = [RoleNameLocator(role=role, name=name, exact=False)] if name else []
-    strategies.append(RoleLocator(role=role))
-
-    scope = None
-    if args.get("within_row"):
-        scope = ContainerWithTextScope(
-            container_role="row", text=LiteralValue(value=args["within_row"])
-        )
-
-    return ElementTarget(
-        description=description,
-        frame=frame_path(args.get("frame")),
-        scope=scope,
-        strategies=strategies,
-        recorded_strategy=strategies[0].strategy,
-        nth=int(args.get("nth") or 0),
-    )

@@ -122,10 +122,16 @@ class Session:
         if self.operator is None:
             self.screen = self._sign_on(key, fields)
             return
-        if key == "PF3":
-            self.screen = main_menu(OPERATORS[self.operator]["name"])
-            return
         title = self.screen._rows[0][30:50].strip()
+        if key == "PF3":
+            # What the footer of each screen says it does: step back one, and
+            # from the top that means signing off.
+            if title == "MAIN MENU":
+                self.operator = None
+                self.screen = sign_on()
+            else:
+                self.screen = main_menu(OPERATORS[self.operator]["name"])
+            return
         if title == "MAIN MENU":
             self.screen = self._menu(fields)
         elif title == "MEMBER INQUIRY":

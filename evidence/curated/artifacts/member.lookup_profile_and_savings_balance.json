@@ -64,7 +64,9 @@
       "code": "NO_SAVINGS_ACCOUNT",
       "description": "Member exists but has no savings account on file",
       "signal_text": "No savings account found for this member",
-      "trigger": {}
+      "trigger": {
+        "member_number": "100244"
+      }
     }
   ],
   "max_steps": 30

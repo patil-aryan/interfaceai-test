@@ -142,10 +142,20 @@ terminal is 24 lines of 80 characters. There is no DOM, no roles, no
 accessibility tree, and the only address an element has is where it sits.
 
 ```bash
-.venv/bin/python -m computer_use.replay teller.member_savings_balance \
+.venv/bin/python -m computer_use.replay teller.member_profile_and_balance \
   --param member_number=100234 \
   --allowlist allowlist.terminal.json --base-url "teller://meridian"
 #   success  ELEANOR R VANCE  ACTIVE  4182.55
+```
+
+The model discovered that flow too, on the same loop that discovers a browser
+flow. Only the words for naming a control differ, because a green screen has
+captions and columns where a page has roles and names:
+
+```bash
+.venv/bin/python -m computer_use.discovery \
+  artifacts/goals/teller.member_profile_and_balance.json \
+  --allowlist allowlist.terminal.json --base-url "teller://meridian"
 ```
 
 Add `--headed --slow 300` to watch it, which prints each screen as it is

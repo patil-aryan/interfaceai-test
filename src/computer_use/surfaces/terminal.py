@@ -22,6 +22,7 @@ from computer_use.schema.capability import (
     ElementTarget,
     GridLocator,
     LabelLocator,
+    LiteralValue,
     RegionScope,
     Scope,
     TextLocator,
@@ -34,6 +35,7 @@ from computer_use.surfaces.base import (
     Observation,
     Surface,
     SurfaceError,
+    TargetVocabulary,
     resolve_value,
 )
 from fake_core_teller.protocol import COLS, ROWS, SCREEN_START, encode
@@ -42,6 +44,10 @@ from fake_core_teller.protocol import COLS, ROWS, SCREEN_START, encode
 # screen in this product writes "MEMBER ID . . ." and every operator reads
 # straight past the leader to the value.
 LEADER = " ."
+
+# An empty input field is drawn as a run of these, and they disappear the moment
+# anything is typed, so nothing durable may be built out of them.
+FIELD_MARK = "_"
 
 # Columns are separated by at least this much whitespace. It is what tells
 # "ELEANOR R VANCE", which contains single spaces, from the next column along.
@@ -53,6 +59,10 @@ SCREEN_TIMEOUT_S = 5.0
 # How many times to press the return key looking for a screen before accepting
 # that it is not reachable from here.
 MAX_RETURNS = 4
+
+# The shortest line label that can serve as a scope. Anything shorter is a
+# sequence number rather than a name, and matches most of the screen.
+MIN_SCOPE_CHARS = 3
 
 # The scheme a screen is addressed by, so an allowlist can constrain which
 # screens automation may reach exactly as it constrains routes on the web.
@@ -94,6 +104,94 @@ class TerminalSurface(Surface):
         # Typing is local until an attention key transmits it, which is what a
         # real terminal does and what makes `fill` cost no round trip.
         self._pending: dict[tuple[int, int], str] = {}
+
+    perception_brief = (
+        "You see the screen exactly as it appears on the glass: 24 lines of 80\n"
+        "characters. There is no markup, no roles and no accessibility tree. An\n"
+        "input field is drawn as a run of underscores. A caption and the value it\n"
+        "describes sit side by side on the same line, separated by a dot leader,\n"
+        "like \"MEMBER ID . . .  100234\".\n"
+        "\n"
+        "Name a control by the caption to its left. That is the one thing on a\n"
+        "character screen that stays put when the data changes. Fall back to a row\n"
+        "and column only when there is no caption, such as a column inside a table,\n"
+        "and then prefer `within_row` plus `column` so the address survives the\n"
+        "table changing length.\n"
+        "\n"
+        "Typing does not reach the application until you transmit. Fill the fields\n"
+        "you need, then `activate` any one of them, or `press` a key such as PF3, to\n"
+        "send the screen. You are already signed on, so move between screens by\n"
+        "typing a menu option and transmitting, not by navigating."
+    )
+
+    def target_vocabulary(self) -> TargetVocabulary:
+        return TargetVocabulary(
+            properties={
+                "caption": {
+                    "type": "string",
+                    "description": "The caption immediately to the left of the field or "
+                                   "value, without its dot leader, e.g. 'MEMBER ID'.",
+                },
+                "text": {
+                    "type": "string",
+                    "description": "Optional. Literal text on screen to point at, when "
+                                   "the thing you want is the text itself.",
+                },
+                "within_row": {
+                    "type": "string",
+                    "description": "Optional. Text identifying the line the element sits "
+                                   "on, e.g. 'SAVINGS' for a row of an accounts table.",
+                },
+                "row": {
+                    "type": "integer",
+                    "description": "Optional, zero-based line number. Only when there is "
+                                   "no caption and no row text to go by.",
+                },
+                "column": {
+                    "type": "integer",
+                    "description": "Optional, zero-based character column the value starts "
+                                   "at. Use with within_row to pick a column of a table.",
+                },
+                "nth": {
+                    "type": "integer",
+                    "description": "Optional, zero-based. Which match to use when more "
+                                   "than one fits.",
+                },
+            },
+            required=[],
+            narrowing_hint=(
+                "pass `within_row` with text from the line the value sits on, and "
+                "`column` with the character column the value starts at, which you "
+                "can count off the screen you were just shown"
+            ),
+        )
+
+    def lookup(self, args: dict[str, Any], description: str) -> ElementTarget:
+        """Name a value by its caption, its text, or where it sits."""
+        strategies: list[LocatorSpec] = []
+        if args.get("caption"):
+            strategies.append(LabelLocator(text=str(args["caption"]).strip()))
+        if args.get("text"):
+            strategies.append(TextLocator(text=str(args["text"]).strip()))
+        if args.get("column") is not None:
+            strategies.append(GridLocator(
+                row=int(args.get("row") or 0), column=int(args["column"])
+            ))
+        if not strategies:
+            raise SurfaceError(
+                "that says which line to look at but not what on it: give a "
+                "`caption`, or some `text`, or a `column`"
+            )
+
+        scope = None
+        if args.get("within_row"):
+            scope = ContainerWithTextScope(
+                container_role="row", text=LiteralValue(value=str(args["within_row"]))
+            )
+        return ElementTarget(
+            description=description, frame=[], scope=scope, strategies=strategies,
+            recorded_strategy=strategies[0].strategy, nth=int(args.get("nth") or 0),
+        )
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -364,26 +462,91 @@ class TerminalSurface(Surface):
         if shown and not content_varies and not any(v and v in shown for v in avoid + anchors):
             strategies.append(TextLocator(text=shown))
 
+        # A caption is its own anchor, so a line scope is only wanted when there
+        # is no caption and the address is a bare column. Adding one anyway
+        # would pin the step to text that includes the empty field's
+        # underscores, which disappear the moment anything is typed.
+        scope = (
+            None if strategies
+            else self._row_scope(handle, avoid, anchors, content_varies)
+        )
+
         # Always last, and always present: on a grid, position is the address
         # that cannot fail to exist, which is exactly why it is the weakest.
+        # Scoped to a line, the line number is the scope's business, so it is
+        # recorded as zero rather than as the line this recording happened to see.
+        cell = self._widen(handle) if content_varies else handle
         strategies.append(GridLocator(
-            row=handle.row, column=handle.column, length=handle.length
+            row=0 if scope is not None else cell.row,
+            column=cell.column, length=cell.length,
         ))
-
-        scope = None
-        anchor = next((a for a in anchors if a and a in self._rows[handle.row]), None)
-        if anchor is not None and not content_varies:
-            from computer_use.schema.capability import LiteralValue
-            scope = ContainerWithTextScope(container_role="row", text=LiteralValue(value=anchor))
 
         return ElementTarget(
             description=description, frame=frame, scope=scope,
             strategies=strategies, recorded_strategy=strategies[0].strategy, nth=0,
         )
 
+    def _widen(self, handle: Handle) -> ScreenRegion:
+        """Grow a value to fill the blank space around it, up to its neighbours.
+
+        A column of figures is right aligned, so "4182.55" starts one column
+        further right than "15630.00" does. Recording where this value happened
+        to begin reads the longer one with its first digit missing. Recording
+        the whole gap between neighbours holds either, and `read` strips the
+        padding. It can never reach a neighbouring value, because it stops at
+        the first character that is not a blank.
+        """
+        line = self._rows[handle.row]
+        start = handle.column
+        while start > 0 and line[start - 1] == " ":
+            start -= 1
+        end = min(COLS, handle.column + handle.length)
+        while end < COLS and line[end] == " ":
+            end += 1
+        return ScreenRegion(row=handle.row, column=start, length=end - start)
+
+    def _row_scope(
+        self, handle: Handle, avoid: tuple[str, ...], anchors: tuple[str, ...],
+        content_varies: bool,
+    ) -> ContainerWithTextScope | None:
+        """Name the line this value sits on, so its column is not a line number.
+
+        A column of a table has no caption beside it; the heading is on a
+        different line entirely. What identifies the line is its own first
+        column, which is `SAVINGS` for an accounts row, and that survives the
+        table gaining a row above it.
+        """
+        line = self._rows[handle.row]
+        if not content_varies:
+            anchor = next((a for a in anchors if a and a in line), None)
+            if anchor is not None:
+                return ContainerWithTextScope(
+                    container_role="row", text=LiteralValue(value=anchor)
+                )
+
+        # Strip the indent first: every line on these screens starts in a
+        # margin, and splitting on the column gap before that yields nothing.
+        label = line.strip().split(COLUMN_GAP)[0].strip().rstrip(LEADER + FIELD_MARK).strip()
+        if not label or len(label) < MIN_SCOPE_CHARS:
+            return None
+        if any(v and v in label for v in avoid + anchors):
+            return None
+        if label in line[handle.column : handle.column + handle.length]:
+            return None  # the value is its own line label; nothing gained
+        return ContainerWithTextScope(container_role="row", text=LiteralValue(value=label))
+
     def _caption_left_of(self, handle: Handle) -> str | None:
-        """The caption this value sits beside, which is how an operator names it."""
-        left = self._rows[handle.row][: handle.column].rstrip(LEADER)
+        """The caption this value sits beside, which is how an operator names it.
+
+        The dot leader is what makes it a caption. Without one, the thing to the
+        left is the previous column of a table, and on these screens that is an
+        account number: data, and the last thing a locator should be built from.
+        """
+        row = self._rows[handle.row]
+        gap = row[: handle.column]
+        if "." not in gap[len(gap.rstrip(LEADER)) :]:
+            return None
+        left = gap.rstrip(LEADER)
         if not left.strip():
             return None
         return left.strip().split(COLUMN_GAP)[-1].strip()

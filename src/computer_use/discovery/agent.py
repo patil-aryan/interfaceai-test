@@ -12,17 +12,12 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from computer_use.discovery.spec import GoalSpec
-from computer_use.discovery.tools import (
-    FINISH,
-    frame_path,
-    lookup_target,
-    tool_definitions,
-)
+from computer_use.discovery.tools import FINISH, tool_definitions
 from computer_use.evidence.sink import EventSink, RunRecorder
 from computer_use.guardrails.policy import Allowlist
 from computer_use.schema.capability import Action, ElementTarget, is_unanchored
 from computer_use.schema.event import EventType, Level, RunKind
-from computer_use.surfaces.base import Surface, TargetNotFound
+from computer_use.surfaces.base import Surface, TargetNotFound, frame_path
 
 MAX_SNAPSHOT_CHARS = 6_000
 
@@ -35,23 +30,22 @@ CHANGES_THE_SCREEN = (
     Action.NAVIGATE, Action.ACTIVATE, Action.DISMISS, Action.PRESS, Action.SELECT,
 )
 
+# How to perceive the screen is the surface's business and is inserted here.
+# Everything around it is true of any application on any surface, which is the
+# claim the two implementations have to keep honest.
 SYSTEM_PROMPT = """\
 You are operating a legacy back-office banking application through its user
 interface, the way a human operator would. There is no API.
 
-You see the screen as an accessibility tree: the structure a screen reader
-exposes. Each line is a role followed by that element's accessible name in
-quotes. This application is served as a frameset, so the observation is split
-into several frames and you must say which frame an element is in.
+{perception}
 
 Work one step at a time. After every action you are shown the new screen. If an
 action fails you are told why; look at the screen again and try a different way
 of identifying the control rather than repeating yourself.
 
 Rules that matter:
-- Identify controls by role and accessible name. Never by a value that will be
-  different next time. When you read a field, locate it by the row it sits in,
-  never by the text it currently contains.
+- Never identify a control by a value that will be different next time. When you
+  read a field, locate it by where it sits, never by the text it now contains.
 - Every action takes an `intent`: one plain sentence, written for a person who
   will review this saved flow months from now.
 - This run is being compiled into a reusable capability that will be replayed
@@ -146,7 +140,9 @@ class DiscoveryAgent:
             evidence_dir=str(run_dir),
         )
 
-        tools = tool_definitions([o.name for o in self._spec.outputs])
+        tools = tool_definitions(
+            [o.name for o in self._spec.outputs], self._surface.target_vocabulary()
+        )
         messages: list[dict[str, Any]] = [
             {"role": "user", "content": self._opening_brief(params)}
         ]
@@ -159,7 +155,9 @@ class DiscoveryAgent:
 
             response = await self._client.messages.create(
                 model=self._model, max_tokens=2048,
-                system=SYSTEM_PROMPT, tools=tools, messages=messages,
+                system=SYSTEM_PROMPT.format(
+                    perception=self._surface.perception_brief),
+                tools=tools, messages=messages,
             )
 
             calls = [b for b in response.content if b.type == "tool_use"]
@@ -249,7 +247,8 @@ class DiscoveryAgent:
             )
 
         try:
-            target = lookup_target(proof, "The record shown is the one that was requested")
+            target = self._surface.lookup(
+                proof, "The record shown is the one that was requested")
             handle, _ = await self._surface.resolve(target, {})
             value = (await self._surface.read(handle)).strip()
         except Exception as exc:
@@ -325,20 +324,21 @@ class DiscoveryAgent:
         if landing is not None:
             return landing, False
 
-        too_wide = _not_a_single_value(step)
+        too_wide = _not_a_single_value(
+            step, self._surface.target_vocabulary().narrowing_hint)
         if too_wide is not None:
             rec.emit(EventType.ACTION_FAILED, f"Read returned a container, not a value: {intent}",
                      level=Level.WARN, detail={"chars": len(step.read_value or "")})
             return too_wide, False
 
-        adrift = _not_anchored(step)
+        adrift = _not_anchored(step, self._surface.target_vocabulary().narrowing_hint)
         if adrift is not None:
             rec.emit(EventType.ACTION_FAILED, f"Read is held in place by nothing: {intent}",
                      level=Level.WARN,
                      detail={"nth": step.target.nth if step.target else None})
             return adrift, False
 
-        mistyped = self._wrong_type(step)
+        mistyped = self._wrong_type(step, self._surface.target_vocabulary().narrowing_hint)
         if mistyped is not None:
             rec.emit(EventType.ACTION_FAILED, f"Read does not match its declared type: {intent}",
                      level=Level.WARN, detail={"output": step.output})
@@ -382,7 +382,7 @@ class DiscoveryAgent:
             await surface.press(args["key"])
             return RecordedStep(action=action, intent=intent, value=args["key"])
 
-        target = lookup_target(args, intent)
+        target = surface.lookup(args, intent)
         handle, _ = await surface.resolve(target, {})
         reading = action is Action.READ
 
@@ -413,7 +413,7 @@ class DiscoveryAgent:
             options=offered,
         )
 
-    def _wrong_type(self, step: RecordedStep) -> str | None:
+    def _wrong_type(self, step: RecordedStep, narrowing: str) -> str | None:
         """Reject a read whose value cannot be the type the contract declares.
 
         Both of these cells sit in the row captioned SAVINGS, so both are
@@ -436,17 +436,16 @@ class DiscoveryAgent:
                 Decimal(value.replace(",", "").replace("$", ""))
             except InvalidOperation:
                 return (
-                    f"{step.output} is declared as a decimal amount, and that cell holds "
+                    f"{step.output} is declared as a decimal amount, and that holds "
                     f"{value!r}, which is not a number. You have the right row but the "
-                    f"wrong column. Raise `nth` to move further along the row until you "
-                    f"reach the cell under the amount heading."
+                    f"wrong column: {narrowing}, and move along until you reach the "
+                    f"value under the amount heading."
                 )
         if declared.type == "enum" and declared.values and value not in declared.values:
             allowed = ", ".join(declared.values)
             return (
-                f"{step.output} must be one of: {allowed}. That cell holds {value!r}. "
-                f"You have the right row but the wrong column; change `nth` to reach the "
-                f"cell holding one of those values."
+                f"{step.output} must be one of: {allowed}. That holds {value!r}. You "
+                f"have the right row but the wrong column: {narrowing}."
             )
         return None
 
@@ -589,7 +588,7 @@ def _scrub(text: str, known: tuple[str, ...]) -> str:
     return text
 
 
-def _not_anchored(step: RecordedStep) -> str | None:
+def _not_anchored(step: RecordedStep, narrowing: str) -> str | None:
     """Reject a read that could only be found again by counting, and say how to fix it.
 
     Every cell on these screens has role `cell`, so a cell picked out purely by
@@ -605,17 +604,15 @@ def _not_anchored(step: RecordedStep) -> str | None:
     if not is_unanchored(step.target):
         return None
     return (
-        "That read can only be found again by counting cells from the top of the "
-        "screen, so it would break as soon as the record has one more row than "
-        "this one. It is also what happens when you point at a caption rather "
-        "than the value, because a caption is the first cell in its row and has "
-        "nothing beside it to name it by. Point at the cell holding the value, "
-        "usually immediately to the right of its caption, and pass `within_row` "
-        "with that caption's text."
+        "That read can only be found again by counting from the top of the screen, "
+        "so it would break as soon as the record has one more row than this one. "
+        "It is also what happens when you point at a caption rather than at the "
+        "value, because a caption has nothing beside it to name it by. Point at "
+        f"the value, which sits just to the right of its caption, and {narrowing}."
     )
 
 
-def _not_a_single_value(step: RecordedStep) -> str | None:
+def _not_a_single_value(step: RecordedStep, narrowing: str) -> str | None:
     """Reject a read that grabbed a whole table, and say how to narrow it."""
     if step.output is None or step.read_value is None:
         return None
@@ -625,9 +622,7 @@ def _not_a_single_value(step: RecordedStep) -> str | None:
     return (
         f"That read returned {len(value)} characters spanning the whole screen, "
         f"which means you selected a container rather than the single value. "
-        f"Narrow it: pass `within_row` with the caption text beside the value you "
-        f"want, and `nth` to pick the cell within that row. It starts: "
-        f"{value[:80]!r}"
+        f"Narrow it: {narrowing}. It starts: {value[:80]!r}"
     )
 
 

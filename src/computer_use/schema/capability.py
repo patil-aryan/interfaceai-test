@@ -246,9 +246,15 @@ def is_unanchored(target: ElementTarget | None) -> bool:
     than the member it was recorded against. A scope or a strategy that names
     the element is enough to anchor it; a bare position is not.
     """
-    if target is None or target.scope is not None or target.nth == 0:
+    if target is None or target.scope is not None:
         return False
-    return not any(s.strategy in SEMANTIC_STRATEGIES for s in target.strategies)
+    if any(s.strategy in SEMANTIC_STRATEGIES for s in target.strategies):
+        return False
+    # Counting from the top of the screen with nothing to count from: an index
+    # into the matches on a marked up page, or a line number on a character grid.
+    return target.nth != 0 or any(
+        s.strategy == "grid" and s.row != 0 for s in target.strategies
+    )
 
 
 # --------------------------------------------------------------------------

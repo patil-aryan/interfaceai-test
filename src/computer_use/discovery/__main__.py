@@ -36,7 +36,7 @@ from computer_use.guardrails.policy import DEFAULT_ALLOWLIST_PATH, load_allowlis
 from computer_use.replay.__main__ import sign_on
 from computer_use.replay.engine import ReplayEngine
 from computer_use.schema.profile import load_app_profile
-from computer_use.surfaces.web import WebSurface
+from computer_use.surfaces import build_surface
 
 DEFAULT_MODEL = "claude-sonnet-5"
 GOAL_DIR = Path("artifacts/goals")
@@ -99,10 +99,10 @@ async def discover(args: argparse.Namespace) -> int:
         return 0
 
     policy = load_allowlist(args.allowlist)
-    surface = WebSurface(headless=not args.headed, slow_mo_ms=args.slow)
+    profile = load_app_profile(spec.app_profile)
+    surface = build_surface(profile, headed=args.headed, slow_mo_ms=args.slow)
     await surface.start()
     try:
-        profile = load_app_profile(spec.app_profile)
         if spec.requires_authenticated_session:
             await sign_on(surface, profile, args.base_url, args.user, args.password)
             await surface.wait_for_ready()

@@ -1,0 +1,71 @@
+{
+  "id": "teller.member_profile_and_balance",
+  "version": "1.0.0",
+  "title": "Read A Member's Savings Balance On The Teller Terminal",
+  "description": "On the green screen teller terminal, takes member inquiry from the main menu, looks a member up by number and reports their name, membership status and savings balance.",
+  "goal": "From the main menu, choose member inquiry, look up the member whose number is {member_number}, and report their name, their membership status and the balance of their savings account.",
+  "app_profile": "meridian-teller@8.4",
+  "institution": "pinecrest-cu",
+  "surface_kind": "terminal",
+  "risk_tier": "read_only",
+  "requires_authenticated_session": true,
+  "inputs": [
+    {
+      "name": "member_number",
+      "type": "string",
+      "required": true,
+      "description": "The member's six digit number.",
+      "sensitivity": "pii",
+      "pattern": "^[0-9]{6}$",
+      "values": null,
+      "example": "100234",
+      "unique_key": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "member_name",
+      "type": "string",
+      "description": "Full name as held on file.",
+      "sensitivity": "pii",
+      "values": null
+    },
+    {
+      "name": "member_status",
+      "type": "enum",
+      "description": "Membership status.",
+      "sensitivity": "internal",
+      "values": [
+        "ACTIVE",
+        "DORMANT",
+        "RESTRICTED"
+      ]
+    },
+    {
+      "name": "savings_balance",
+      "type": "decimal",
+      "description": "Balance on the member's savings account.",
+      "sensitivity": "pii",
+      "values": null
+    }
+  ],
+  "outcomes": [
+    {
+      "code": "MEMBER_NOT_FOUND",
+      "description": "No member exists with that number.",
+      "signal_text": "No member found",
+      "trigger": {
+        "member_number": "999999"
+      }
+    },
+    {
+      "code": "NO_SAVINGS_ACCOUNT",
+      "description": "The member exists but holds no savings account, so there is no savings balance to report.",
+      "signal_text": "The member holds no savings account",
+      "trigger": {
+        "member_number": "100244"
+      }
+    }
+  ],
+  "max_steps": 25
+}

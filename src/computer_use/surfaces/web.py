@@ -35,6 +35,8 @@ from computer_use.surfaces.base import (
     Observation,
     Surface,
     SurfaceError,
+    TargetVocabulary,
+    frame_path,
     resolve_value,
 )
 
@@ -131,6 +133,76 @@ class WebSurface(Surface):
         self._pw = None
         self._browser = None
         self._page: Page | None = None
+
+    perception_brief = (
+        "You see the screen as an accessibility tree: the structure a screen reader\n"
+        "exposes. Each line is a role followed by that element's accessible name in\n"
+        "quotes. This application is served as a frameset, so the observation is split\n"
+        "into several frames and you must say which frame an element is in.\n"
+        "\n"
+        "Identify controls by role and accessible name. Never by a value that will be\n"
+        "different next time. When you read a field, locate it by the row it sits in,\n"
+        "never by the text it currently contains."
+    )
+
+    def target_vocabulary(self) -> TargetVocabulary:
+        return TargetVocabulary(
+            properties={
+                "role": {
+                    "type": "string",
+                    "description": "Accessible role exactly as the snapshot shows it: "
+                                   "textbox, button, link, cell, row, checkbox, combobox.",
+                },
+                "name": {
+                    "type": "string",
+                    "description": "Accessible name, the quoted text after the role in "
+                                   "the snapshot. Omit only when the element has no name.",
+                },
+                "frame": {
+                    "type": "string",
+                    "description": "Which frame the element is in, as titled in the "
+                                   "observation. Use an empty string for the main document.",
+                },
+                "within_row": {
+                    "type": "string",
+                    "description": "Optional. Text identifying the row the element sits "
+                                   "in. Use this when several elements share a role and name.",
+                },
+                "nth": {
+                    "type": "integer",
+                    "description": "Optional, zero-based. Which match to use when more "
+                                   "than one fits.",
+                },
+            },
+            required=["role", "frame"],
+            narrowing_hint=(
+                "pass `within_row` with the caption beside the value you want, and "
+                "`nth` to pick the cell within that row"
+            ),
+        )
+
+    def lookup(self, args: dict[str, Any], description: str) -> ElementTarget:
+        """Name a control by its role and accessible name, narrowed by its row."""
+        role = args["role"]
+        name = (args.get("name") or "").strip()
+        strategies: list[LocatorSpec] = []
+        if name:
+            strategies.append(RoleNameLocator(role=role, name=name, exact=False))
+        strategies.append(RoleLocator(role=role))
+
+        scope = None
+        if args.get("within_row"):
+            scope = ContainerWithTextScope(
+                container_role="row", text=LiteralValue(value=args["within_row"])
+            )
+        return ElementTarget(
+            description=description,
+            frame=frame_path(args.get("frame")),
+            scope=scope,
+            strategies=strategies,
+            recorded_strategy=strategies[0].strategy,
+            nth=int(args.get("nth") or 0),
+        )
 
     # -- lifecycle ---------------------------------------------------------
 

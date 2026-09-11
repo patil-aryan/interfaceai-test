@@ -169,10 +169,16 @@ composition now belongs to the surface. That is the value of writing the second
 implementation rather than only designing for it: the corner was there and the
 argument had not found it.
 
+Discovery runs on both. The action verbs are identical, because they are the
+same verbs the artifact and the engine use. What differs is only how a model is
+taught to see and to point, so the surface owns that too: a short perception
+brief, the words it may use to name a control, and the sentence that corrects it
+when it points one column too far. The model drove the green screen to the goal
+and the compiler produced the capability, with both declared outcomes confirmed
+against the running application.
+
 Perception is the accessibility tree on the web, which exists on desktop
-platforms too, rather than the DOM, which does not. Discovery is not yet wired
-to the terminal, because the model-facing tool vocabulary is written in roles
-and names; the terminal artifact is hand-written, and that is a cut.
+platforms too, rather than the DOM, which does not.
 
 **Multi-tenant.** The fixture serves two institutions running the same product
 at different versions, with different wording: `MEMBER ID` against
@@ -255,9 +261,6 @@ Deliberately left out, each at a seam that exists:
 
 - **The institution override layer.** Designed, directory present, not merged at
   load time. The fixture already serves the second tenant to build against.
-- **Discovery on the character screen.** The second surface replays, but the
-  model-facing tool vocabulary is written in roles and names, so nothing
-  discovers against it yet and its capability is hand-written.
 - **A real operator console.** The handoff is two files and a terminal.
 - **Multi-run stability scoring.** The `stability` block exists on every artifact
   and nothing updates it.
@@ -267,6 +270,6 @@ Deliberately left out, each at a seam that exists:
 
 What I would build next, in order: the institution override layer, because it is
 the claim the brief presses hardest on and the fixture is already built for it;
-then a target vocabulary the model can use on a character screen, so the second
-surface is discovered against rather than hand-written; then stability scoring,
+then a desktop surface, which the seam is now shown to support and which is the
+last of the three the brief names; then stability scoring,
 because approval should be earned by evidence rather than asserted.

@@ -65,6 +65,13 @@ class Observation(BaseModel):
     screenshot_path: str | None = None
 
 
+def frame_path(value: str | None) -> list[str]:
+    """Turn a model's frame string into the frame path a surface expects."""
+    if not value or value in (".", "/", "main"):
+        return []
+    return [part for part in value.split("/") if part]
+
+
 def resolve_value(source: ValueSource | None, params: dict[str, Any]) -> str:
     """Turn a literal or a parameter reference into the text to use."""
     if source is None:
@@ -74,6 +81,24 @@ def resolve_value(source: ValueSource | None, params: dict[str, Any]) -> str:
             raise SurfaceError(f"step needs parameter {source.param!r}, which was not supplied")
         return str(params[source.param])
     return source.value
+
+
+class TargetVocabulary(BaseModel):
+    """How a model is taught to point at something on this surface.
+
+    A browser has roles and accessible names. A character screen has captions,
+    rows and columns. Both are ways of saying "that one", and neither is
+    meaningful on the other, so the surface owns its own words for it.
+    """
+
+    properties: dict[str, Any]
+    required: list[str]
+
+    # One sentence saying how to move to the value next to the one you reached.
+    # "Raise nth" is sound advice among the cells of a marked-up row and useless
+    # on a character grid, so the correction the loop gives has to come from
+    # here rather than from the loop.
+    narrowing_hint: str
 
 
 class Surface(ABC):
@@ -90,6 +115,27 @@ class Surface(ABC):
     """
 
     kind: str = "abstract"
+
+    # What a model needs to be told about reading this surface, inserted into
+    # the discovery prompt. Perception differs; everything after it does not.
+    perception_brief: str = ""
+
+    # -- teaching a model to point ------------------------------------------
+
+    @abstractmethod
+    def target_vocabulary(self) -> TargetVocabulary:
+        """The words a model may use to name one control here."""
+
+    @abstractmethod
+    def lookup(self, args: dict[str, Any], description: str) -> ElementTarget:
+        """A throwaway target for finding an element once, right now.
+
+        Deliberately not what gets recorded. The model describes the control
+        well enough to reach it on the screen in front of it; `describe_target`
+        then harvests the chain that goes into the artifact. Keeping these apart
+        is what stops the model's guess about robustness becoming the
+        capability's.
+        """
 
     # -- lifecycle ---------------------------------------------------------
 

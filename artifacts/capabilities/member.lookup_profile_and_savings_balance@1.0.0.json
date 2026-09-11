@@ -53,7 +53,7 @@
   "steps": [
     {
       "id": "s1",
-      "intent": "Open the main banking application to search for a member",
+      "intent": "Go to the main dashboard to find member search functionality",
       "action": "navigate",
       "target": null,
       "value": {
@@ -80,10 +80,10 @@
     },
     {
       "id": "s2",
-      "intent": "Navigate to member inquiry screen",
+      "intent": "Open member inquiry screen",
       "action": "activate",
       "target": {
-        "description": "Navigate to member inquiry screen",
+        "description": "Open member inquiry screen",
         "frame": [
           "nav"
         ],
@@ -128,10 +128,10 @@
     },
     {
       "id": "s3",
-      "intent": "Enter member number to search",
+      "intent": "Enter member number to search for the member",
       "action": "fill",
       "target": {
-        "description": "Enter member number to search",
+        "description": "Enter member number to search for the member",
         "frame": [
           "work"
         ],
@@ -164,7 +164,7 @@
         "condition": {
           "kind": "value_equals",
           "target": {
-            "description": "Enter member number to search",
+            "description": "Enter member number to search for the member",
             "frame": [
               "work"
             ],
@@ -204,10 +204,10 @@
     },
     {
       "id": "s4",
-      "intent": "Search for the member by ID",
+      "intent": "Search for member by ID",
       "action": "activate",
       "target": {
-        "description": "Search for the member by ID",
+        "description": "Search for member by ID",
         "frame": [
           "work"
         ],
@@ -252,10 +252,10 @@
     },
     {
       "id": "s5",
-      "intent": "Read the member's full legal name from the profile",
+      "intent": "Read the member's full legal name",
       "action": "read",
       "target": {
-        "description": "Read the member's full legal name from the profile",
+        "description": "Read the member's full legal name",
         "frame": [
           "work"
         ],
@@ -281,16 +281,16 @@
       "checkpoint": null,
       "condition": null,
       "timeout_ms": 10000,
-      "on_failure": "fail",
+      "on_failure": "classify",
       "retries": 0,
       "irreversible": false
     },
     {
       "id": "s6",
-      "intent": "Read the membership status from the profile",
+      "intent": "Read the member's current membership status",
       "action": "read",
       "target": {
-        "description": "Read the membership status from the profile",
+        "description": "Read the member's current membership status",
         "frame": [
           "work"
         ],
@@ -316,16 +316,16 @@
       "checkpoint": null,
       "condition": null,
       "timeout_ms": 10000,
-      "on_failure": "fail",
+      "on_failure": "classify",
       "retries": 0,
       "irreversible": false
     },
     {
       "id": "s7",
-      "intent": "Read the savings account balance from the accounts table",
+      "intent": "Read the current savings account balance",
       "action": "read",
       "target": {
-        "description": "Read the savings account balance from the accounts table",
+        "description": "Read the current savings account balance",
         "frame": [
           "work"
         ],
@@ -351,7 +351,7 @@
       "checkpoint": null,
       "condition": null,
       "timeout_ms": 10000,
-      "on_failure": "fail",
+      "on_failure": "classify",
       "retries": 0,
       "irreversible": false
     }
@@ -400,14 +400,15 @@
           "work"
         ]
       },
-      "terminal": true
+      "terminal": true,
+      "at_step": null
     }
   ],
   "provenance": {
     "goal": "Look up member {member_number} and read their full name, membership status, and current savings balance",
-    "discovery_run_id": "disc_573bd85006",
+    "discovery_run_id": "disc_5597ebb7bc",
     "model": "claude-sonnet-5",
-    "recorded_at": "2026-09-11T18:30:50.124419Z",
+    "recorded_at": "2026-09-11T20:01:31.099828Z",
     "recorded_against_institution": "pinecrest-cu",
     "surface_kind": "legacy_web"
   },
