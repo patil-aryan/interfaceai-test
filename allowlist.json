@@ -1,8 +1,9 @@
 {
-  "name": "local-fixture",
+  "name": "local-fixtures",
   "hosts": [
     "127.0.0.1:8081",
-    "localhost:8081"
+    "localhost:8081",
+    "meridian"
   ],
   "routes": [
     "/",
@@ -15,7 +16,11 @@
     "/members/search",
     "/members/[0-9]+",
     "/members/[0-9]+/subaccount/new",
-    "/members/[0-9]+/subaccount/confirm"
+    "/members/[0-9]+/subaccount/confirm",
+    "/sign-on",
+    "/main-menu",
+    "/member-inquiry",
+    "/member-profile"
   ],
   "actions": [
     "navigate",

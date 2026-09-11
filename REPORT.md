@@ -2,59 +2,103 @@
 
 ## 1. Architecture
 
-The system is split at one seam: **discovery is expensive, uncertain and happens
-once; replay is cheap, deterministic and happens forever.**
+One seam splits the whole system. **Discovery is expensive, uncertain, and
+happens once. Replay is cheap, deterministic, and happens forever.**
 
+```mermaid
+flowchart TB
+  H["written by a person first:<br/>the goal, and the typed contract it implies"] --> L
+
+  subgraph L["DISCOVERY · once, a model decides"]
+    direction TB
+    O["observe the whole screen"] --> M["the model picks one tool call"]
+    M --> GD{"guards"}
+    GD -->|"refused, told why"| M
+    GD -->|"allowed"| ACT["act on the surface"]
+    ACT --> HV["harvest every way of naming that element,<br/>apply each back to the live screen,<br/>keep only the ones that find it again"]
+    HV --> O
+  end
+
+  L --> TR
+
+  subgraph TR["THE TRANSLATION · what makes the model unnecessary"]
+    direction TB
+    P1["drop typing that was immediately undone"] --> P2["a recorded value that equals a declared input<br/>becomes that input"]
+    P2 --> P3["a row named by an identifier becomes<br/>the row for that input"]
+    P3 --> P4["values the model wrote into its own prose<br/>are replaced"]
+    P4 --> P5["every step gains a checkpoint"]
+    P5 --> P6["every step is told what to do if it fails"]
+    P6 --> P7["the claim of success becomes a condition"]
+    P7 --> P8["every declared outcome is provoked against<br/>the running app, or dropped"]
+  end
+
+  TR --> ART["THE ARTIFACT · plain JSON<br/>typed inputs and outputs · ordered steps<br/>locator chains · checkpoints · failure policy<br/>success condition · business outcomes · provenance"]
+
+  ART --> E
+  AG["a calling agent invokes it by name,<br/>and never sees a screen"] --> E
+
+  subgraph R["REPLAY · forever, no model"]
+    direction TB
+    E["the engine walks the artifact:<br/>check policy · resolve · act · settle · assert · log"] --> RES["success · business_outcome · failed"]
+  end
+
+  RES --> SF
+
+  subgraph SF["THE SURFACE · the seam"]
+    direction LR
+    W["WebSurface<br/>role and name · the row containing this text<br/>CSS path · a URL"]
+    T["TerminalSurface<br/>the caption to its left · the line containing this text<br/>a row and a column · a screen name"]
+  end
+
+  X["guardrails · evidence · escalation · app profile"] -.-> L
+  X -.-> R
 ```
-a goal in English
-   -> contract        the typed inputs and outputs the goal implies, saved for review
-   -> discovery       a model drives the real UI, observe / decide / act
-   -> compiler        the successful trace becomes a capability artifact
-   -> verification    each declared business outcome is provoked and confirmed
-   -> replay          the artifact runs with new inputs, no model in the loop
-   -> escalation      when it cannot safely proceed, a person takes the live session
-```
 
-Five decisions shape everything else.
+The same drawing is at
+[excalidraw.com](https://excalidraw.com/#json=Wg5kkh_EieBgmpXVEqtWZ,Ch1wFCB3P-OmAA8wDy9jjQ),
+and in `architecture.excalidraw` in this repository.
 
-**The replay engine is an interpreter, not generated code.** It walks an
-artifact and dispatches on a fixed action vocabulary. The alternative, having
-the model emit Python, produces something nobody can review, diff, version or
-approve before it runs unattended against member records. Data can be reviewed.
+Five decisions do most of the work.
 
-**One action vocabulary, three consumers.** The `Action` enum is simultaneously
-the tool list handed to the model, the step types an artifact may contain, and
-the engine's dispatch table. Nothing is translated between them. There is no
-`click`, because a terminal has no mouse; the verb is `activate`.
+**The engine interprets an artifact, it does not run generated code.** It walks
+the steps and dispatches on a fixed set of verbs. I could have had the model
+write Python instead. Then nobody could read it, diff it, or approve it before
+it ran unattended against member records. JSON you can read.
 
-**The model's locator is thrown away.** When the model says "the link named
-MEMBER INQUIRY", that finds the element once. `Surface.describe_target` then
-harvests every way of addressing it, applies each candidate back to the live
-page, and records only those that resolve to the same element. What the model
-chose is evidence; what the page can prove is the capability.
+**One set of verbs, three users of it.** The same `Action` enum is the tool list
+the model gets, the step types an artifact may hold, and the engine's dispatch
+table. Nothing gets translated in between. There is no `click`, because a
+terminal has no mouse. The verb is `activate`.
 
-**The engine is a total function.** `run()` returns a `ReplayResult` for every
-input and never raises. The caller is an agent, not a person at a terminal, and
-a traceback is not one of the three shapes it understands.
+**The model's locator gets binned.** The model says "the link named MEMBER
+INQUIRY" and that finds the element once, now. Then `describe_target` works out
+every other way to name that element, tries each one against the live page, and
+keeps only the ones that land on the same element. What the model picked is
+evidence. What the page can prove is the capability.
 
-**Application knowledge lives in an app profile, not in artifacts.** Sign-on, and
-the screens that mean "session expired" or "not authorised", belong to the vendor
-product. Fixing one of those fixes every capability at once.
+**The engine always returns something.** `run()` gives back a `ReplayResult` for
+any input and never raises. The caller is an agent, not a person watching a
+terminal, and a stack trace is not one of the three shapes it knows.
 
-Trade-off accepted: a single process, synchronous, file-backed. Queues,
-databases and services would add infrastructure the brief explicitly does not
-reward, and the seams for them are visible (the event sink, the handoff broker).
+**What is true of the product lives in an app profile, not in artifacts.**
+Sign-on, and the screens that mean "session expired" or "not authorised", belong
+to the vendor's product, not to any one flow. Fix one of those and every
+capability gets the fix.
+
+What I gave up: one process, synchronous, files on disk. Queues and databases
+would be infrastructure the brief does not ask for, and the places they would
+slot in are already visible, at the event sink and the handoff broker.
 
 ## 2. Artifact schema
 
-An artifact is a **contract**, not a step list, because an AI agent has to decide
-whether it answers the task in front of it.
+An artifact is a **contract**, not a list of steps. An agent has to work out
+whether it answers the task in front of it, and a step list tells it nothing.
 
 - **Typed inputs**, each with a regex the value must match in full, a
   sensitivity tag, and a `unique_key` flag. A capability tiered
-  `irreversible_write` cannot be constructed unless at least one input is a
-  unique key: acting on a surname risks acting on the wrong person, and that is
-  enforced by a model validator, not by convention.
+  `irreversible_write` will not construct unless one of its inputs is a unique
+  key. Acting on a surname means acting on the wrong person sooner or later. A
+  validator enforces that, not a comment.
 - **Typed outputs**, coerced on the way out. Money is `Decimal`, never `float`.
 - **An ordered step list**, every step carrying a plain-English `intent` written
   for a reviewer, and a `checkpoint` asserting it actually arrived.
@@ -67,7 +111,7 @@ whether it answers the task in front of it.
 - **Declared business outcomes**, each with a detector confirmed against the
   running application.
 - **Provenance**, naming the goal, the model, the run, and the institution it was
-  recorded against; it points at the transcript and never embeds it.
+  recorded against. It points at the transcript and never embeds it.
 - **Approval status and risk tier**, which the guardrails read.
 
 Three layers were designed for and one is implemented: app profile (per vendor
@@ -75,36 +119,39 @@ product), capability (per flow), institution override (per tenant).
 
 ## 3. Determinism and error handling
 
-**Determinism** comes from the locator chain plus polling. Every strategy in a
-chain was verified against the live page at recording time, so a fallback is a
-rung that has actually worked, not a guess. `resolve` retries the whole chain to
-a deadline, because a screen still loading is indistinguishable from one missing
-the control. Container scopes resolve to the **innermost** match: nested tables
-make ancestors match too, and taking the first silently reads a different
-member's row.
+**Determinism** comes from the locator chain and from polling. Every way of
+naming an element was checked against the live page when it was recorded, so a
+fallback is something that has actually worked, not a guess. `resolve` retries
+the whole chain until a deadline, because a screen that is still loading looks
+exactly like one that is missing the control. Scopes resolve to the **innermost**
+match. Nested tables make the ancestors match too, and taking the first one
+quietly reads a different member's row.
 
-**A locator may be bound to a parameter.** A scope is normally recorded as
-literal text, but text identifying one record is promoted by the compiler to a
-parameter reference, so a step reads "the `SELECT` link in the row containing
-`{member_number}`" rather than the row it happened to be recorded against. Four
-members share the surname `VANCE` and two of them share a first name, a branch
-and a status, so on that screen nothing else separates them. The rule is narrow:
-a *container* may be named by an input the contract marks `unique_key`, and a
-*control* may never be named by any value the run touched.
+**A locator can be bound to a parameter.** Scopes are normally recorded as
+plain text. If that text identifies one record, the compiler turns it into a
+parameter, so the step reads "the `SELECT` link in the row holding
+`{member_number}`" instead of the row it happened to see while recording. Four
+members share the surname `VANCE`, and two of them share a first name, a branch
+and a status, so on the results screen nothing else tells them apart.
 
-**Some answers have no message.** A member holding no savings account is shown a
-profile with no savings row, and the application says nothing at all. That is
-the caller's answer, not a fault, so the condition vocabulary includes
-`element_absent`. It is only accepted as a detector after a confirming run shows
-the same element present under ordinary inputs, which separates "missing for
-this input" from "the locator is broken", and it is bound to the step that went
-looking, because the absence of a savings row is equally true of the sign-on
-screen.
+I kept the rule narrow. A *container* can be named by an input marked
+`unique_key`. A *control* can never be named by any value the run touched.
 
-**Drift** is measured on success. Every resolution compares the strategy that
-fired against the one recorded. A capability that starts resolving by a weaker
-strategy still works and is decaying, and that appears on the result before it
-ever fails.
+**Some answers have no message.** A member with no savings account gets a
+profile with no savings row on it. The application says nothing. That is still
+the caller's answer, not a fault, so `element_absent` is in the condition
+vocabulary.
+
+It only becomes a detector after a second run shows the same element present
+under normal inputs. That is what separates "missing for this input" from "the
+locator is broken", and without it every future breakage would come back as a
+cheerful business outcome. It is also tied to the step that went looking,
+because "there is no savings row" is just as true of the sign-on screen.
+
+**Drift shows up on success, not on failure.** Every time something resolves,
+the engine compares the way that fired against the way that was recorded. A
+capability falling back to a weaker locator still works, but it is rotting, and
+that lands on the result before it ever breaks.
 
 **The result is one of three shapes**, never a boolean:
 
@@ -132,24 +179,24 @@ been made to fire:
 | a route outside the allowlist | `failed policy_blocked` |
 | an irreversible step nobody authorised | `failed escalation_unanswered` |
 
-Recovery is bounded and risk-aware. Re-authenticating restores the session but
-not the place in the flow, so a **read-only** capability is replayed from its
-first step, and a writing one is stopped: replaying a submit could open a second
-account.
+Recovery is bounded, and it knows what the flow is. Signing in again gets the
+session back but not the place in the flow. So a **read-only** capability starts
+again from step one, and a writing one stops. Replaying a submit could open a
+second account.
 
 ## 4. Heterogeneity and multi-tenant
 
-**Surface abstraction.** `Surface` is an abstract class owning policy, with two
-implementations owning mechanism. The base class owns the fallback order, the
-definition of degradation, the retry deadline and the settle rule; subclasses
-implement locate, act and observe. The engine imports `Surface`, never
-Playwright, and contains no mention of a browser or a DOM.
+**Surface abstraction.** `Surface` is an abstract class that holds the policy.
+Two subclasses hold the mechanism. The base class decides the order locators are
+tried, what counts as drift, how long to wait, and when a screen has settled.
+The subclass implements locate, act and observe. The engine imports `Surface`
+and never Playwright, and says nothing about browsers or a DOM anywhere.
 
-This is demonstrated rather than argued. The second surface is a 24x80 character
-screen with no markup, no roles and no accessibility tree, where the only
-address an element has is where it sits. The same engine replays a capability
-against it with no change: an application profile declares its `surface_kind`
-and the provider is built from that. The concepts carry over intact.
+I built the second surface rather than just claiming the first one generalised.
+It is a 24x80 character screen with no markup, no roles and no accessibility
+tree, where the only address anything has is where it sits. The same engine
+replays against it with no changes: the app profile says `surface_kind` and the
+provider is built from that.
 
 | Web | Character screen |
 |---|---|
@@ -165,30 +212,32 @@ it reports on the web.
 
 Building it found one real leak. The engine composed addresses with `urljoin`, a
 web habit, which blocked the first terminal run at its own allowlist. Address
-composition now belongs to the surface. That is the value of writing the second
-implementation rather than only designing for it: the corner was there and the
-argument had not found it.
+composition belongs to the surface now. That is the payoff for actually writing
+the second one. The corner was there the whole time and no amount of thinking
+about the design had found it.
 
-Discovery runs on both. The action verbs are identical, because they are the
-same verbs the artifact and the engine use. What differs is only how a model is
-taught to see and to point, so the surface owns that too: a short perception
-brief, the words it may use to name a control, and the sentence that corrects it
-when it points one column too far. The model drove the green screen to the goal
-and the compiler produced the capability, with both declared outcomes confirmed
-against the running application.
+Discovery runs on both. The verbs are the same, because they are the same verbs
+the artifact and the engine use. The only difference is how a model is taught to
+see the screen and point at things, so the surface owns that too: a short
+perception brief, the words it may point with, and the sentence that corrects it
+when it points one column too far. The model drove the green screen to the goal,
+the compiler produced the capability, and both declared outcomes were confirmed
+against the running app.
 
-Perception is the accessibility tree on the web, which exists on desktop
-platforms too, rather than the DOM, which does not.
+On the web I read the accessibility tree rather than the DOM, because desktop
+platforms have an accessibility tree and do not have a DOM.
 
 **Multi-tenant.** The fixture serves two institutions running the same product
 at different versions, with different wording: `MEMBER ID` against
 `ACCOUNT NUMBER`, `Search` against `Find`, `SAVINGS` against `REGULAR SHARES`.
-The intended resolution is three layers merged at load time: the app profile for
+The plan is three layers merged when the artifact loads: the app profile for
 what is true of the product, the artifact for the flow, and an institution
-override patching only what a tenant renamed. Drift between tenants surfaces as
-degradation counts on artifacts replayed against a tenant they were not recorded
-on, which is the signal that an override is needed. The override layer is
-designed and its directory exists; it is not implemented, and that is a cut.
+override that patches only what a tenant renamed. Drift between tenants shows up
+as degradation counts when you replay an artifact against a tenant it was not
+recorded on, and that is the signal to write an override.
+
+The override layer is designed, the directory is there, and it is not built.
+That is a cut, not an oversight.
 
 ## 5. Escalation and handoff
 
@@ -196,37 +245,39 @@ designed and its directory exists; it is not implemented, and that is a cut.
 step marked irreversible when confirmation is required, and a recognised screen
 the profile cannot recover from.
 
-The handoff is real rather than described. The engine **stops driving the browser
-it already has**. Nothing is closed and nothing is re-created, so the operator
-works in the same session, with the same cookies, on the same screen. An
-intervention request is written carrying the capability, the goal, the step, why
-it stopped, and a screenshot plus the accessibility tree of every frame. A
-minimal operator surface shows it and takes the answer. Control transfers are
-recorded on the result as `ControlEvent`s naming who held the session and
-whether they changed anything, and the run resumes from where it stopped.
+The handoff is real, not described. The engine **stops driving the browser it
+already has**. Nothing gets closed, nothing gets recreated, so the operator is
+in the same session with the same cookies looking at the same screen. A request
+is written out carrying the capability, the goal, the step, why it stopped, a
+screenshot, and the accessibility tree of every frame. A small operator surface
+shows it and takes the answer. The transfers land on the result as
+`ControlEvent`s saying who held the session and whether they changed anything,
+then the run picks up where it left off.
 
-The mechanism is two files in the run's evidence directory. That is deliberately
-the smallest thing that is genuinely real, and it is the seam: a queue, a
-websocket or a co-browsing console replaces those two writes without the engine
-noticing. The operator surface is mocked; the control-transfer model is not.
+The mechanism is two files in the run's evidence directory. That is on purpose:
+the smallest thing that is genuinely real. It is also the seam. A queue, a
+websocket or a proper co-browsing console replaces those two writes and the
+engine never notices. The operator UI is a mock. The control-transfer model is
+not.
 
 ## 6. Safety
 
-**An explicit allowlist**, deny by default. Permitted hosts, route patterns and
-action types, plus separate grants for irreversible actions and for replaying an
-unapproved artifact unattended. A missing allowlist is an error, never an open
-door: the failure mode of that choice is a system that will not start, and the
-failure mode of the alternative is a system that starts and does anything.
+**An explicit allowlist**, deny by default. Hosts, route patterns, action
+types, and separate grants for irreversible actions and for running an unapproved
+artifact unattended. No allowlist file means the system refuses to start. If I
+got that wrong the system does not run, and if I got the other choice wrong the
+system runs and does anything.
 
-It checks where a step **landed**, not only where it was sent. Checking only
-`navigate` steps constrained nothing, because the member page is reached by
-following a link; and checking only the top-level URL constrained nothing
-either, because in a frameset the address bar never moves. Every live frame must
-be permitted.
+It checks where a step **landed**, not just where it was aimed. Checking only
+`navigate` steps constrained nothing, because you reach the member page by
+clicking a link. Checking only the top-level URL constrained nothing either,
+because in a frameset the address bar never moves. Every live frame has to be
+permitted.
 
-**Risk is handled conservatively.** An irreversible capability is refused unless
-the allowlist grants it; only the step that actually commits is marked, so the
-gate does not fire on every menu click; and a person is asked before it runs.
+**Risk is handled conservatively.** An irreversible capability is refused
+unless the allowlist grants it. Only the step that actually commits is marked,
+so the gate does not fire on every menu click. A person is asked before it
+runs.
 
 **Redaction happens at the persistence boundary**, not the computation boundary.
 Inputs and outputs are masked on the way into the log according to their
@@ -235,41 +286,54 @@ mistake masked for empty. The result returned to the caller carries the real
 values, because the caller asked for them. No locator is ever built from a value
 the run supplied or read.
 
-Redaction is applied by value rather than by field, so one value carrying two
-tags takes the stricter of them. A sub-account number arrived once as a `pii`
-output and again as an `internal` one; masking each field on its own tag left the
-second copy in the clear beside the masked first. The same rule applies to the
-discovery trace, which additionally drops the raw text of every screen it saw:
-those screens hold other people's records, and nothing in the system can know
-which parts of them matter.
+Masking is keyed by value, not by field, so a value carrying two tags takes the
+stricter one. A sub-account number came through once tagged `pii` and once
+tagged `internal`. Masking each field on its own tag left the second copy in the
+clear right next to the masked first.
 
-**Limits.** The allowlist is host and path based, so it cannot express "this
-operator may open accounts below this amount". Redaction still depends on the
-contract's tags being right, and those tags are proposed by a model; the one rule
-that does not depend on that is a `unique_key` input, which is always treated as
-identifying. Only values the run itself supplied or read can be masked, so
-another member's data visible on the same screen is not recognised, which is why
-the trace keeps no screen text at all. The model's context is not redacted: it
-sees the screen, which is unavoidable for computer use and would need a separate
-masking layer before a real deployment. Finally, the result handed back to the
-caller is deliberately unmasked, because the caller asked for it; the evidence
-directory keeps a copy of that result, and in a real deployment it would not.
+The same rule covers the discovery trace, which also throws away the raw text of
+every screen it saw. Those screens hold other people's records and nothing here
+can tell which parts of them matter.
+
+**What this does not cover.**
+
+The allowlist works on hosts and paths, so it cannot say "this operator may open
+accounts below this amount".
+
+Redaction leans on the contract's tags being right, and a model proposes those
+tags. The one rule that does not lean on it is `unique_key`, which is always
+treated as identifying, because a model choosing the wrong word should not
+decide whether a member number gets logged.
+
+Only values the run supplied or read can be masked. Another member's data
+sitting on the same screen is not recognised at all. That is why the discovery
+trace keeps no screen text whatsoever.
+
+The model's own context is not redacted. It sees the screen, which is the whole
+point of computer use, and a real deployment would need a masking layer in front
+of it. The result handed back to the caller is not masked either, because the
+caller asked for it, but the evidence directory keeps a copy of that result and
+in production it should not.
 
 ## 7. Cuts
 
-Deliberately left out, each at a seam that exists:
+Left out on purpose. Each one sits at a seam that already exists.
 
-- **The institution override layer.** Designed, directory present, not merged at
-  load time. The fixture already serves the second tenant to build against.
-- **A real operator console.** The handoff is two files and a terminal.
-- **Multi-run stability scoring.** The `stability` block exists on every artifact
-  and nothing updates it.
-- **Outcome triggers the model cannot supply.** An outcome that cannot be
-  provoked is dropped rather than shipped as a detector that would never fire,
-  so some real outcomes are absent instead of wrong.
+- **The institution override layer.** Designed, directory is there, not merged
+  at load time. The fixture already serves the second tenant to build against.
+- **A real operator console.** The handoff is two files and a terminal prompt.
+- **Multi-run stability scoring.** Every artifact carries a `stability` block
+  and nothing ever updates it.
+- **Unit tests.** `scripts/end_to_end.py` checks 23 flows end to end, but
+  `pytest` still reports no tests. Those are different things and I am not going
+  to call one the other.
+- **Outcomes the model cannot provoke.** If a trigger does not produce the
+  situation, the outcome is dropped rather than shipped as a detector that would
+  never fire. So some real outcomes are missing rather than wrong.
 
-What I would build next, in order: the institution override layer, because it is
-the claim the brief presses hardest on and the fixture is already built for it;
-then a desktop surface, which the seam is now shown to support and which is the
-last of the three the brief names; then stability scoring,
-because approval should be earned by evidence rather than asserted.
+What I would do next, in order. The institution override layer first, because it
+is the claim the brief presses hardest on and the fixture is already built for
+it. Then a desktop surface, since the seam is now shown to carry a second
+implementation and desktop is the last of the three kinds the brief names. Then
+stability scoring, because approval should be earned by evidence rather than
+asserted.
