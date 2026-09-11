@@ -133,7 +133,7 @@ class Surface(ABC):
             attempts = []
             try:
                 scope = await self._resolve_scope(target.scope, target.frame, params)
-            except SurfaceError as exc:
+            except Exception as exc:
                 attempts.append(f"scope: {exc}")
                 scope = None
                 if not attempts or time.monotonic() >= deadline:
@@ -178,8 +178,10 @@ class Surface(ABC):
         while True:
             try:
                 held, observed = await self.check(condition, params)
-            except SurfaceError as exc:
-                held, observed = False, str(exc)
+            except Exception as exc:
+                # A frame detaching mid-navigation, or a page still loading,
+                # is 'not true yet', not a fault. Polling will ask again.
+                held, observed = False, 'could not evaluate: ' + str(exc)
             if held or time.monotonic() >= deadline:
                 return held, observed
             await asyncio.sleep(POLL_INTERVAL_S)

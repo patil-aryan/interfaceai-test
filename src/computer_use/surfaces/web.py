@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
 from typing import Any
 
 from playwright.async_api import Frame, Locator, Page, async_playwright
+from pydantic import BaseModel
 
 from computer_use.schema.capability import (
     Condition,
@@ -24,8 +24,7 @@ from computer_use.surfaces.base import (
 )
 
 
-@dataclass
-class Point:
+class Point(BaseModel):
     """A coordinate handle, produced only by the last-resort strategy."""
 
     x: int
@@ -77,14 +76,22 @@ class WebSurface(Surface):
     # -- frames ------------------------------------------------------------
 
     def _frame(self, path: list[str]) -> Frame:
-        """Walk a frame path. An empty path means the main document."""
+        """Walk a frame path. An empty path means the main document.
+
+        Frame identity is not stable across navigation: a frameset's children
+        exist unnamed and pointing at about:blank before they take their name,
+        and an old frame lingers briefly after being replaced. Detached frames
+        are skipped, and the newest match wins.
+        """
         frame = self.page.main_frame
         for name in path:
-            children = [c for c in frame.child_frames if c.name == name]
+            children = [
+                c for c in frame.child_frames if c.name == name and not c.is_detached()
+            ]
             if not children:
                 available = [c.name for c in frame.child_frames]
-                raise SurfaceError(f"frame {name!r} not found; available: {available}")
-            frame = children[0]
+                raise SurfaceError(f"frame {name!r} not attached; available: {available}")
+            frame = children[-1]
         return frame
 
     def _frame_paths(self) -> list[list[str]]:
@@ -188,7 +195,9 @@ class WebSurface(Surface):
     # -- actions -----------------------------------------------------------
 
     async def navigate(self, url: str) -> None:
-        await self.page.goto(url, wait_until="domcontentloaded")
+        # "load" rather than "domcontentloaded" so a frameset's children have
+        # been fetched and named before anything tries to address them.
+        await self.page.goto(url, wait_until="load")
 
     async def fill(self, handle: Handle, value: str) -> None:
         if isinstance(handle, Point):

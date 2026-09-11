@@ -1,0 +1,420 @@
+{
+  "schema_version": "1.0",
+  "id": "member.savings_balance",
+  "version": "1.0.0",
+  "title": "Read a member's savings balance",
+  "description": "Looks up a member by their member number in the core banking console and returns their name, account status, and current savings balance.",
+  "app_profile": "meridian-core@8.4",
+  "status": "approved",
+  "risk_tier": "read_only",
+  "requires_authenticated_session": true,
+  "inputs": [
+    {
+      "name": "member_id",
+      "type": "string",
+      "required": true,
+      "description": "The member's six digit number.",
+      "sensitivity": "pii",
+      "pattern": "^[0-9]{6}$",
+      "values": null,
+      "example": "100234",
+      "unique_key": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "member_name",
+      "type": "string",
+      "description": "Full name as held on file.",
+      "sensitivity": "pii",
+      "values": null
+    },
+    {
+      "name": "member_status",
+      "type": "enum",
+      "description": "Membership status.",
+      "sensitivity": "internal",
+      "values": [
+        "ACTIVE",
+        "DORMANT",
+        "RESTRICTED"
+      ]
+    },
+    {
+      "name": "savings_balance",
+      "type": "decimal",
+      "description": "Available balance on the savings account.",
+      "sensitivity": "pii",
+      "values": null
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "intent": "Open the core banking console.",
+      "action": "navigate",
+      "target": null,
+      "value": {
+        "kind": "literal",
+        "value": "/"
+      },
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "MAIN MENU",
+          "frame": [
+            "nav"
+          ]
+        },
+        "timeout_ms": 5000,
+        "description": "the navigation menu is present"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s2",
+      "intent": "Choose Member Inquiry from the main menu.",
+      "action": "activate",
+      "target": {
+        "description": "Member inquiry menu item",
+        "frame": [
+          "nav"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "link",
+            "name": "MEMBER INQUIRY",
+            "exact": false
+          },
+          {
+            "strategy": "text",
+            "text": "MEMBER INQUIRY"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "SEARCH BY MEMBER NUMBER",
+          "frame": [
+            "work"
+          ]
+        },
+        "timeout_ms": 5000,
+        "description": "the member inquiry screen is displayed"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s3",
+      "intent": "Enter the member number into the search field.",
+      "action": "fill",
+      "target": {
+        "description": "Member number field",
+        "frame": [
+          "work"
+        ],
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "MEMBER ID"
+          }
+        },
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "textbox",
+            "name": "MEMBER ID",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "textbox"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": {
+        "kind": "param",
+        "param": "member_id"
+      },
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "value_equals",
+          "target": {
+            "description": "Member number field",
+            "frame": [
+              "work"
+            ],
+            "scope": {
+              "kind": "container_with_text",
+              "container_role": "row",
+              "text": {
+                "kind": "literal",
+                "value": "MEMBER ID"
+              }
+            },
+            "strategies": [
+              {
+                "strategy": "role_name",
+                "role": "textbox",
+                "name": "MEMBER ID",
+                "exact": false
+              }
+            ],
+            "recorded_strategy": "role_name",
+            "nth": 0
+          },
+          "expected": {
+            "kind": "param",
+            "param": "member_id"
+          }
+        },
+        "timeout_ms": 5000,
+        "description": "the field holds the member number that was supplied"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s4",
+      "intent": "Run the search.",
+      "action": "activate",
+      "target": {
+        "description": "Search button",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "button",
+            "name": "Search",
+            "exact": false
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "MEMBER PROFILE",
+          "frame": [
+            "work"
+          ]
+        },
+        "timeout_ms": 5000,
+        "description": "the member profile screen is displayed"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s5",
+      "intent": "Read the member's name.",
+      "action": "read",
+      "target": {
+        "description": "Member name cell",
+        "frame": [
+          "work"
+        ],
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "NAME . . . . ."
+          }
+        },
+        "strategies": [
+          {
+            "strategy": "role",
+            "role": "cell"
+          }
+        ],
+        "recorded_strategy": "role",
+        "nth": 1
+      },
+      "value": null,
+      "output": "member_name",
+      "checkpoint": null,
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s6",
+      "intent": "Read the membership status.",
+      "action": "read",
+      "target": {
+        "description": "Status cell",
+        "frame": [
+          "work"
+        ],
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "STATUS . ."
+          }
+        },
+        "strategies": [
+          {
+            "strategy": "role",
+            "role": "cell"
+          }
+        ],
+        "recorded_strategy": "role",
+        "nth": 4
+      },
+      "value": null,
+      "output": "member_status",
+      "checkpoint": null,
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s7",
+      "intent": "Read the savings account balance.",
+      "action": "read",
+      "target": {
+        "description": "Savings balance cell",
+        "frame": [
+          "work"
+        ],
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "SAVINGS"
+          }
+        },
+        "strategies": [
+          {
+            "strategy": "role",
+            "role": "cell"
+          }
+        ],
+        "recorded_strategy": "role",
+        "nth": 2
+      },
+      "value": null,
+      "output": "savings_balance",
+      "checkpoint": null,
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    }
+  ],
+  "success_condition": {
+    "condition": {
+      "kind": "value_equals",
+      "target": {
+        "description": "Displayed member number",
+        "frame": [
+          "work"
+        ],
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "MEMBER ID . ."
+          }
+        },
+        "strategies": [
+          {
+            "strategy": "role",
+            "role": "cell"
+          }
+        ],
+        "recorded_strategy": "role",
+        "nth": 1
+      },
+      "expected": {
+        "kind": "param",
+        "param": "member_id"
+      }
+    },
+    "timeout_ms": 5000,
+    "description": "the profile on screen is the member that was requested"
+  },
+  "outcomes": [
+    {
+      "code": "MEMBER_NOT_FOUND",
+      "description": "No member exists with that number.",
+      "detector": {
+        "kind": "text_present",
+        "text": "NO MEMBER MATCHING",
+        "frame": [
+          "work"
+        ]
+      },
+      "terminal": true
+    },
+    {
+      "code": "INVALID_MEMBER_NUMBER",
+      "description": "The member number was rejected by the application.",
+      "detector": {
+        "kind": "text_present",
+        "text": "MUST BE 6 DIGITS",
+        "frame": [
+          "work"
+        ]
+      },
+      "terminal": true
+    }
+  ],
+  "provenance": {
+    "goal": "Look up a member by number and report their current savings balance",
+    "discovery_run_id": "hand-written-v1",
+    "model": "none (hand-written to validate the schema and executor)",
+    "recorded_at": "2026-09-11T05:07:55.029424Z",
+    "recorded_against_institution": "pinecrest-cu",
+    "surface_kind": "legacy_web"
+  },
+  "stability": {
+    "replays": 0,
+    "successes": 0,
+    "last_verified_at": null,
+    "degradations_seen": 0
+  }
+}
