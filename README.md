@@ -67,7 +67,6 @@ a replayable artifact to `artifacts/capabilities/`.
 **2. Replay it deterministically, with different inputs and no model.**
 
 ```bash
-A=.venv/bin/python -m computer_use.replay
 .venv/bin/python -m computer_use.replay member.lookup_profile_and_savings_balance \
   --param member_number=100253 --attended
 ```
@@ -84,7 +83,33 @@ A=.venv/bin/python -m computer_use.replay
   --param member_number=12 --attended
 ```
 
-**4. Run a capability that changes something.** The default allowlist refuses it,
+**4. Pick one record out of a list of several that look alike.** Four members
+share the surname `VANCE`, and two of them share a first name, a branch and a
+status as well. The capability searches by surname and then activates the
+`SELECT` link *in the row holding the member number it was given*, which is a
+locator bound to a parameter rather than to the recording.
+
+```bash
+for m in 100252 100253; do
+  .venv/bin/python -m computer_use.replay member.find_by_surname_and_read_balance \
+    --param surname=VANCE --param member_number=$m --attended
+done
+#   THEODORE J VANCE  WESTBROOK  112.00
+#   THEODORE J VANCE  WESTBROOK  6401.88
+```
+
+The same capability shows what happens when the answer is a missing row rather
+than a message. Member 100244 exists and holds only a checking account, so the
+profile simply has no savings row and the application says nothing about it:
+
+```bash
+.venv/bin/python -m computer_use.replay member.find_by_surname_and_read_balance \
+  --param surname=RAGHAVAN --param member_number=100244 --attended
+#   business_outcome  NO_SAVINGS_ACCOUNT
+#   partial outputs still returned: ANAND K RAGHAVAN, MAIN OFFICE
+```
+
+**5. Run a capability that changes something.** The default allowlist refuses it,
 which is the point.
 
 ```bash
@@ -94,7 +119,7 @@ which is the point.
 #   failed  policy_blocked
 ```
 
-**5. Permit it, and a person is asked before anything is committed.** Leave this
+**6. Permit it, and a person is asked before anything is committed.** Leave this
 running and answer it from another terminal.
 
 ```bash
@@ -111,6 +136,38 @@ running and answer it from another terminal.
 The browser stays open and is the operator's while the request is open. It is
 the same session, with the same cookies, on the same screen. Answering `resume`
 hands it back and the run continues from where it stopped.
+
+**7. See what an AI agent sees, and watch one call a capability.** This is what
+the whole system is for: an agent that cannot read a screen, invoking a saved
+capability by name with typed arguments.
+
+```bash
+.venv/bin/python -m computer_use.catalog            # the catalog, as an agent receives it
+.venv/bin/python -m computer_use.catalog --json     # the tool schemas verbatim
+```
+
+A capability is discovered as a draft and may be exercised with a person
+watching, but a production agent may not invoke it until someone promotes it:
+
+```bash
+.venv/bin/python -m computer_use.catalog --approve member.lookup_profile_and_savings_balance
+```
+
+Call one directly, with no model anywhere:
+
+```bash
+.venv/bin/python -m computer_use.catalog \
+  --call member.lookup_profile_and_savings_balance --arg member_number=100253
+```
+
+Or hand the catalog to a model with a job in plain English:
+
+```bash
+.venv/bin/python -m computer_use.catalog \
+  --ask "two members are called THEODORE J VANCE; I need the savings balance \
+for the one whose member number is 100253, and for member 100244 whose surname \
+is RAGHAVAN"
+```
 
 Exit codes: `0` for success and for a business outcome, `1` for a failure.
 Every run writes `evidence/<run_id>/events.jsonl`, plus a screenshot and the
@@ -146,6 +203,7 @@ src/computer_use/
   surfaces/        the perceive-and-act seam, and its one browser implementation
   discovery/       the model-driven loop, the contract, the compiler, verification
   replay/          the deterministic engine and its command line
+  catalog/         saved capabilities, offered to an agent as callable tools
   guardrails/      the allowlist
   escalation/      the handoff broker and the operator surface
   evidence/        the append-only run log

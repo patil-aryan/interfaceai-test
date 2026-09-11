@@ -417,10 +417,21 @@ class ReplayEngine:
                  actor=Actor.SYSTEM, step_id=step.id, step_index=index)
 
         if answer.decision != "resume":
+            stopped = f"{answer.operator} stopped the run" + (
+                f": {answer.note}" if answer.note else ""
+            )
+            if changed:
+                # A person had the live session and used it. "Stopped" would tell
+                # the caller nothing happened, and something did. What they did is
+                # not knowable from here, only that the screen is not where the
+                # automation left it.
+                stopped += (
+                    "; the session was changed while they held it, so the "
+                    "application may not be in the state this run started from"
+                )
             return _Verdict(failure=detail.model_copy(update={
                 "classification": FailureClass.ESCALATION_ABANDONED,
-                "observed": f"{answer.operator} stopped the run"
-                            + (f": {answer.note}" if answer.note else ""),
+                "observed": stopped,
             }), escalated=True)
 
         return None if proceed_on_resume else _Verdict(retry=True)
@@ -726,7 +737,7 @@ class ReplayEngine:
             return _Verdict(retry=True)
 
         if policy is OnFailure.CLASSIFY:
-            outcome = await self._detect_outcome(state.artifact, params)
+            outcome = await self._detect_outcome(state.artifact, params, step_id=step.id)
             if outcome is not None:
                 rec.emit(EventType.OUTCOME_DETECTED,
                          f"Declared business outcome {outcome.code} matched",
@@ -886,9 +897,12 @@ class ReplayEngine:
         return text
 
     async def _detect_outcome(
-        self, artifact: CapabilityArtifact, params: dict[str, Any]
+        self, artifact: CapabilityArtifact, params: dict[str, Any],
+        step_id: str | None = None,
     ) -> BusinessOutcome | None:
         for outcome in artifact.outcomes:
+            if outcome.at_step is not None and outcome.at_step != step_id:
+                continue
             try:
                 held, _ = await self._surface.check(outcome.detector, params)
             except Exception:

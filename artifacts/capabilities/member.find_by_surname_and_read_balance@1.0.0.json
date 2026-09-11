@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
-  "id": "member.lookup_profile_and_savings_balance",
+  "id": "member.find_by_surname_and_read_balance",
   "version": "1.0.0",
-  "title": "Look up member profile and savings balance",
-  "description": "Retrieves a member's full name, membership status, and current savings balance given their member number.",
+  "title": "Find A Member By Surname And Read Their Savings Balance",
+  "description": "Searches the member file by surname, picks the one row in the result list that carries the member number supplied, opens that member's profile and reports their name, branch and savings balance.",
   "app_profile": "meridian-core@8.4",
   "status": "approved",
   "risk_tier": "read_only",
@@ -13,39 +13,44 @@
       "name": "member_number",
       "type": "string",
       "required": true,
-      "description": "The member's unique account number",
+      "description": "The member number identifying which row of the result list to open.",
       "sensitivity": "pii",
       "pattern": "^[0-9]{6}$",
       "values": null,
-      "example": "100236",
+      "example": "100253",
       "unique_key": true
+    },
+    {
+      "name": "surname",
+      "type": "string",
+      "required": true,
+      "description": "The surname to search the member file for. Full or partial.",
+      "sensitivity": "pii",
+      "pattern": "^[A-Za-z]{1,20}$",
+      "values": null,
+      "example": "VANCE",
+      "unique_key": false
     }
   ],
   "outputs": [
     {
-      "name": "full_name",
+      "name": "member_name",
       "type": "string",
-      "description": "Member's full legal name",
+      "description": "Full name as held on file.",
       "sensitivity": "pii",
       "values": null
     },
     {
-      "name": "membership_status",
-      "type": "enum",
-      "description": "Current status of the membership",
+      "name": "branch",
+      "type": "string",
+      "description": "The branch the member is registered at.",
       "sensitivity": "internal",
-      "values": [
-        "ACTIVE",
-        "INACTIVE",
-        "SUSPENDED",
-        "CLOSED",
-        "DORMANT"
-      ]
+      "values": null
     },
     {
       "name": "savings_balance",
       "type": "decimal",
-      "description": "Current balance of the member's savings account",
+      "description": "Available balance on the member's savings account.",
       "sensitivity": "pii",
       "values": null
     }
@@ -53,7 +58,7 @@
   "steps": [
     {
       "id": "s1",
-      "intent": "Open the main banking application to search for a member",
+      "intent": "Go to the member search page to look up a member by surname",
       "action": "navigate",
       "target": null,
       "value": {
@@ -80,10 +85,10 @@
     },
     {
       "id": "s2",
-      "intent": "Navigate to member inquiry screen",
+      "intent": "Open member inquiry to search for a member by surname",
       "action": "activate",
       "target": {
-        "description": "Navigate to member inquiry screen",
+        "description": "Open member inquiry to search for a member by surname",
         "frame": [
           "nav"
         ],
@@ -128,69 +133,77 @@
     },
     {
       "id": "s3",
-      "intent": "Enter member number to search",
+      "intent": "Enter surname to search for members",
       "action": "fill",
       "target": {
-        "description": "Enter member number to search",
+        "description": "Enter surname to search for members",
         "frame": [
           "work"
         ],
-        "scope": null,
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "SURNAME . . . . ."
+          }
+        },
         "strategies": [
-          {
-            "strategy": "role_name",
-            "role": "textbox",
-            "name": "MEMBER ID",
-            "exact": false
-          },
           {
             "strategy": "role",
             "role": "textbox"
           },
           {
-            "strategy": "structural",
-            "css": "form > table > tbody > tr:nth-of-type(2) > td:nth-of-type(2) > input"
+            "strategy": "coordinates",
+            "x": 359,
+            "y": 155,
+            "viewport_width": 1200,
+            "viewport_height": 820
           }
         ],
-        "recorded_strategy": "role_name",
+        "recorded_strategy": "role",
         "nth": 0
       },
       "value": {
         "kind": "param",
-        "param": "member_number"
+        "param": "surname"
       },
       "output": null,
       "checkpoint": {
         "condition": {
           "kind": "value_equals",
           "target": {
-            "description": "Enter member number to search",
+            "description": "Enter surname to search for members",
             "frame": [
               "work"
             ],
-            "scope": null,
+            "scope": {
+              "kind": "container_with_text",
+              "container_role": "row",
+              "text": {
+                "kind": "literal",
+                "value": "SURNAME . . . . ."
+              }
+            },
             "strategies": [
-              {
-                "strategy": "role_name",
-                "role": "textbox",
-                "name": "MEMBER ID",
-                "exact": false
-              },
               {
                 "strategy": "role",
                 "role": "textbox"
               },
               {
-                "strategy": "structural",
-                "css": "form > table > tbody > tr:nth-of-type(2) > td:nth-of-type(2) > input"
+                "strategy": "coordinates",
+                "x": 359,
+                "y": 155,
+                "viewport_width": 1200,
+                "viewport_height": 820
               }
             ],
-            "recorded_strategy": "role_name",
+            "recorded_strategy": "role",
             "nth": 0
           },
           "expected": {
             "kind": "param",
-            "param": "member_number"
+            "param": "surname"
           }
         },
         "timeout_ms": 5000,
@@ -204,28 +217,58 @@
     },
     {
       "id": "s4",
-      "intent": "Search for the member by ID",
+      "intent": "Submit the surname search",
+      "action": "press",
+      "target": null,
+      "value": {
+        "kind": "literal",
+        "value": "Enter"
+      },
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "MEMBER SEARCH RESULTS",
+          "frame": [
+            "work"
+          ]
+        },
+        "timeout_ms": 5000,
+        "description": "the screen showing 'MEMBER SEARCH RESULTS' is displayed"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s5",
+      "intent": "Open the member record for the requested member number",
       "action": "activate",
       "target": {
-        "description": "Search for the member by ID",
+        "description": "Open the member record for the requested member number",
         "frame": [
           "work"
         ],
-        "scope": null,
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "param",
+            "param": "member_number"
+          }
+        },
         "strategies": [
           {
             "strategy": "role_name",
-            "role": "button",
-            "name": "Search",
+            "role": "link",
+            "name": "SELECT",
             "exact": false
           },
           {
             "strategy": "role",
-            "role": "button"
-          },
-          {
-            "strategy": "structural",
-            "css": "form > table > tbody > tr:nth-of-type(2) > td:nth-of-type(3) > input"
+            "role": "link"
           }
         ],
         "recorded_strategy": "role_name",
@@ -251,11 +294,11 @@
       "irreversible": false
     },
     {
-      "id": "s5",
-      "intent": "Read the member's full legal name from the profile",
+      "id": "s6",
+      "intent": "Read the member's full name value next to its label",
       "action": "read",
       "target": {
-        "description": "Read the member's full legal name from the profile",
+        "description": "Read the member's full name value next to its label",
         "frame": [
           "work"
         ],
@@ -277,20 +320,20 @@
         "nth": 1
       },
       "value": null,
-      "output": "full_name",
+      "output": "member_name",
       "checkpoint": null,
       "condition": null,
       "timeout_ms": 10000,
-      "on_failure": "fail",
+      "on_failure": "classify",
       "retries": 0,
       "irreversible": false
     },
     {
-      "id": "s6",
-      "intent": "Read the membership status from the profile",
+      "id": "s7",
+      "intent": "Read the member's branch value next to its label",
       "action": "read",
       "target": {
-        "description": "Read the membership status from the profile",
+        "description": "Read the member's branch value next to its label",
         "frame": [
           "work"
         ],
@@ -299,7 +342,7 @@
           "container_role": "row",
           "text": {
             "kind": "literal",
-            "value": "STATUS . ."
+            "value": "BRANCH . . . ."
           }
         },
         "strategies": [
@@ -309,23 +352,23 @@
           }
         ],
         "recorded_strategy": "role",
-        "nth": 4
+        "nth": 1
       },
       "value": null,
-      "output": "membership_status",
+      "output": "branch",
       "checkpoint": null,
       "condition": null,
       "timeout_ms": 10000,
-      "on_failure": "fail",
+      "on_failure": "classify",
       "retries": 0,
       "irreversible": false
     },
     {
-      "id": "s7",
-      "intent": "Read the savings account balance from the accounts table",
+      "id": "s8",
+      "intent": "Read the savings account balance value in the accounts table",
       "action": "read",
       "target": {
-        "description": "Read the savings account balance from the accounts table",
+        "description": "Read the savings account balance value in the accounts table",
         "frame": [
           "work"
         ],
@@ -351,7 +394,7 @@
       "checkpoint": null,
       "condition": null,
       "timeout_ms": 10000,
-      "on_failure": "fail",
+      "on_failure": "classify",
       "retries": 0,
       "irreversible": false
     }
@@ -391,8 +434,8 @@
   },
   "outcomes": [
     {
-      "code": "MEMBER_NOT_FOUND",
-      "description": "No member exists with the given member number",
+      "code": "NO_MEMBER_WITH_SURNAME",
+      "description": "The surname search returned no members at all.",
       "detector": {
         "kind": "text_present",
         "text": "NO MEMBER MATCHING",
@@ -400,14 +443,59 @@
           "work"
         ]
       },
-      "terminal": true
+      "terminal": true,
+      "at_step": null
+    },
+    {
+      "code": "SURNAME_TOO_SHORT",
+      "description": "The application refused the surname because too few characters were supplied to search on.",
+      "detector": {
+        "kind": "text_present",
+        "text": "INVALID ENTRY — ENTER AT LEAST 2 CHARACTERS OF SURNAME",
+        "frame": [
+          "work"
+        ]
+      },
+      "terminal": true,
+      "at_step": null
+    },
+    {
+      "code": "NO_SAVINGS_ACCOUNT",
+      "description": "The member exists but holds no savings account, so there is no savings balance to report.",
+      "detector": {
+        "kind": "element_absent",
+        "target": {
+          "description": "Read the savings account balance value in the accounts table",
+          "frame": [
+            "work"
+          ],
+          "scope": {
+            "kind": "container_with_text",
+            "container_role": "row",
+            "text": {
+              "kind": "literal",
+              "value": "SAVINGS"
+            }
+          },
+          "strategies": [
+            {
+              "strategy": "role",
+              "role": "cell"
+            }
+          ],
+          "recorded_strategy": "role",
+          "nth": 2
+        }
+      },
+      "terminal": true,
+      "at_step": "s8"
     }
   ],
   "provenance": {
-    "goal": "Look up member {member_number} and read their full name, membership status, and current savings balance",
-    "discovery_run_id": "disc_573bd85006",
+    "goal": "Search for members whose surname is {surname}. The search returns a list, and more than one member can share a surname, so from that list open the member whose member number is {member_number} and report their name, branch and savings balance. Search by surname only: leave the member number search field empty, because filling it skips the result list entirely and there would be no list to choose from.",
+    "discovery_run_id": "disc_c43fb7391f",
     "model": "claude-sonnet-5",
-    "recorded_at": "2026-09-11T18:30:50.124419Z",
+    "recorded_at": "2026-09-11T19:08:54.617544Z",
     "recorded_against_institution": "pinecrest-cu",
     "surface_kind": "legacy_web"
   },

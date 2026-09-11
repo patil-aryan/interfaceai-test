@@ -18,6 +18,7 @@ from computer_use.schema.capability import (
     BusinessOutcome,
     CapabilityArtifact,
     Checkpoint,
+    ContainerWithTextScope,
     ElementTarget,
     InputParam,
     LiteralValue,
@@ -29,6 +30,7 @@ from computer_use.schema.capability import (
     TextPresent,
     ValueEquals,
     ValueSource,
+    is_unanchored,
 )
 
 # A heading worth asserting: short, loud, and not something a value would be.
@@ -52,6 +54,7 @@ def compile_artifact(spec: GoalSpec, run: DiscoveryOutcome) -> CapabilityArtifac
     if not run.reached_goal:
         raise ValueError(f"cannot compile a run that did not reach its goal: {run.stop_reason}")
 
+    run = run.model_copy(update={"steps": _without_self_corrections(run.steps)})
     inputs = _reconcile_inputs(spec, run)
     examples = {i.name: i.example for i in inputs if i.example}
     committing = _committing_step(run, spec)
@@ -155,11 +158,7 @@ def _step(
     previous: dict[str, str], *, commits: bool,
 ) -> Step:
     value = _parameterise(recorded.value, examples)
-    target = recorded.target
-    if target is not None:
-        target = target.model_copy(update={
-            "description": _generalise(target.description, examples)
-        })
+    target = _retarget(recorded.target, examples)
     return Step(
         id=step_id,
         intent=_generalise(recorded.intent, examples),
@@ -171,6 +170,69 @@ def _step(
         on_failure=_on_failure(recorded),
         irreversible=commits,
     )
+
+
+def _addressing(target: ElementTarget | None) -> object:
+    """A target stripped of its prose, so two descriptions of one control compare equal."""
+    if target is None:
+        return None
+    return target.model_dump(mode="json", exclude={"description"})
+
+
+def _without_self_corrections(steps: list[RecordedStep]) -> list[RecordedStep]:
+    """Drop a value that was typed into a control and then cleared again.
+
+    A model meeting an unfamiliar form types into the wrong box and empties it.
+    That is the discovery loop working, but it is not part of the flow, and
+    leaving it in is not merely untidy: here it put the surname in the field the
+    application caps at six characters, so the compiled capability worked for
+    VANCE and failed for RAGHAVAN.
+
+    Only an immediately adjacent pair is removed. That is narrow enough that
+    nothing the flow depends on can sit between the two halves, and it leaves a
+    lone clearing step alone, which is a different thing: emptying a field the
+    application arrived with already filled.
+    """
+    kept: list[RecordedStep] = []
+    index = 0
+    while index < len(steps):
+        step = steps[index]
+        following = steps[index + 1] if index + 1 < len(steps) else None
+        undone = (
+            following is not None
+            and step.action is Action.FILL
+            and following.action is Action.FILL
+            and not (following.value or "").strip()
+            and _addressing(step.target) == _addressing(following.target)
+        )
+        if undone:
+            index += 2
+            continue
+        kept.append(step)
+        index += 1
+    return kept
+
+
+def _retarget(target: ElementTarget | None, examples: dict[str, str]) -> ElementTarget | None:
+    """Generalise a recorded target: its prose, and any scope naming a supplied value.
+
+    The harvester records "the row containing 100253", because that is what it
+    could verify against the screen in front of it. Left alone, the capability
+    would select that member every time it ran, whatever it was called with.
+    Promoting the scope to a parameter reference is what turns one recording
+    into "the row for the member number I was given".
+    """
+    if target is None:
+        return None
+    update: dict[str, object] = {
+        "description": _generalise(target.description, examples)
+    }
+    scope = target.scope
+    if isinstance(scope, ContainerWithTextScope) and isinstance(scope.text, LiteralValue):
+        promoted = _parameterise(scope.text.value, examples)
+        if isinstance(promoted, ParamRef):
+            update["scope"] = scope.model_copy(update={"text": promoted})
+    return target.model_copy(update=update)
 
 
 def _generalise(text: str, examples: dict[str, str]) -> str:
@@ -267,8 +329,15 @@ def _new_heading(
 
 
 def _on_failure(recorded: RecordedStep) -> OnFailure:
-    """Submitting is where a declared outcome shows up, so test for one first."""
-    if recorded.action in (Action.ACTIVATE, Action.PRESS):
+    """Where a declared outcome shows up, so test for one before calling it a fault.
+
+    Submitting produces the application's own message. A read that cannot find
+    what it came for produces nothing at all, and the missing thing is itself
+    the answer: a member who holds no savings account has no savings row. In
+    both cases a detector is consulted first, and the step still fails normally
+    when none matches.
+    """
+    if recorded.action in (Action.ACTIVATE, Action.PRESS, Action.READ):
         return OnFailure.CLASSIFY
     return OnFailure.FAIL
 
@@ -282,9 +351,11 @@ def _success_condition(spec: GoalSpec, run: DiscoveryOutcome) -> Checkpoint:
     """
     proof = run.proof or {}
     if run.proof_target is not None and proof.get("proof_input"):
+        examples = {i.name: i.example for i in spec.inputs if i.example}
         return Checkpoint(
             condition=ValueEquals(
-                target=run.proof_target, expected=ParamRef(param=proof["proof_input"])
+                target=_retarget(run.proof_target, examples),
+                expected=ParamRef(param=proof["proof_input"]),
             ),
             description="the record on screen is the one that was requested",
         )
@@ -316,3 +387,24 @@ def _busiest_frame(run: DiscoveryOutcome) -> list[str]:
         if recorded.target is not None and recorded.target.frame:
             return recorded.target.frame
     return []
+
+
+def fragile_targets(artifact: CapabilityArtifact) -> list[str]:
+    """Steps addressed by a position with nothing to anchor it.
+
+    The discovery loop refuses an unanchored *read* while there is still a model
+    in the conversation that can be asked to point somewhere better. This is the
+    backstop for every other action, and for artifacts that arrived some other
+    way.
+    """
+    warnings: list[str] = []
+    for step in artifact.steps:
+        target = step.target
+        if not is_unanchored(target):
+            continue
+        warnings.append(
+            f"{step.id} ({step.action.value}) is addressed as {target.recorded_strategy} "
+            f"number {target.nth} with nothing to anchor it; it will break when the "
+            f"screen grows a row"
+        )
+    return warnings

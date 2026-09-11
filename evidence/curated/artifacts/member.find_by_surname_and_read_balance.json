@@ -1,0 +1,87 @@
+{
+  "id": "member.find_by_surname_and_read_balance",
+  "version": "1.0.0",
+  "title": "Find A Member By Surname And Read Their Savings Balance",
+  "description": "Searches the member file by surname, picks the one row in the result list that carries the member number supplied, opens that member's profile and reports their name, branch and savings balance.",
+  "goal": "Search for members whose surname is {surname}. The search returns a list, and more than one member can share a surname, so from that list open the member whose member number is {member_number} and report their name, branch and savings balance. Search by surname only: leave the member number search field empty, because filling it skips the result list entirely and there would be no list to choose from.",
+  "app_profile": "meridian-core@8.4",
+  "institution": "pinecrest-cu",
+  "surface_kind": "legacy_web",
+  "risk_tier": "read_only",
+  "requires_authenticated_session": true,
+  "inputs": [
+    {
+      "name": "member_number",
+      "type": "string",
+      "required": true,
+      "description": "The member number identifying which row of the result list to open.",
+      "sensitivity": "pii",
+      "pattern": "^[0-9]{6}$",
+      "values": null,
+      "example": "100253",
+      "unique_key": true
+    },
+    {
+      "name": "surname",
+      "type": "string",
+      "required": true,
+      "description": "The surname to search the member file for. Full or partial.",
+      "sensitivity": "pii",
+      "pattern": "^[A-Za-z]{1,20}$",
+      "values": null,
+      "example": "VANCE",
+      "unique_key": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "member_name",
+      "type": "string",
+      "description": "Full name as held on file.",
+      "sensitivity": "pii",
+      "values": null
+    },
+    {
+      "name": "branch",
+      "type": "string",
+      "description": "The branch the member is registered at.",
+      "sensitivity": "internal",
+      "values": null
+    },
+    {
+      "name": "savings_balance",
+      "type": "decimal",
+      "description": "Available balance on the member's savings account.",
+      "sensitivity": "pii",
+      "values": null
+    }
+  ],
+  "outcomes": [
+    {
+      "code": "NO_MEMBER_WITH_SURNAME",
+      "description": "The surname search returned no members at all.",
+      "signal_text": "No member found with that surname",
+      "trigger": {
+        "surname": "ZZZZZZ"
+      }
+    },
+    {
+      "code": "SURNAME_TOO_SHORT",
+      "description": "The application refused the surname because too few characters were supplied to search on.",
+      "signal_text": "Enter more characters of the surname",
+      "trigger": {
+        "surname": "V"
+      }
+    },
+    {
+      "code": "NO_SAVINGS_ACCOUNT",
+      "description": "The member exists but holds no savings account, so there is no savings balance to report.",
+      "signal_text": "The member holds no savings account",
+      "trigger": {
+        "member_number": "100244",
+        "surname": "RAGHAVAN"
+      }
+    }
+  ],
+  "max_steps": 30
+}

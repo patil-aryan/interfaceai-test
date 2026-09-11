@@ -11,6 +11,7 @@ from playwright.async_api import Frame, Locator, Page, async_playwright
 from pydantic import BaseModel
 
 from computer_use.schema.capability import (
+    SEMANTIC_STRATEGIES,
     Condition,
     ContainerWithTextScope,
     CoordinateLocator,
@@ -58,8 +59,9 @@ el => {
   }
   if (!label) { const l = el.closest('label'); if (l) label = l.innerText.trim(); }
   const row = el.closest('tr');
-  let rowText = null, labelCell = null;
+  let rowText = null, labelCell = null, rowAll = null;
   if (row) {
+    rowAll = (row.innerText || '').trim();
     const first = row.querySelector('td, th');
     if (first && !first.contains(el)) rowText = (first.innerText || '').trim();
     // The caption sitting immediately before this value, which is what a human
@@ -78,14 +80,11 @@ el => {
     label: label,
     text: (el.innerText || '').trim(),
     rowText: rowText,
+    rowAll: rowAll,
     labelCell: labelCell,
   };
 }
 """
-
-# Strategies that address a control by what it *is*. A target with none of
-# these is addressed only by shape or position, and earns the coordinate rung.
-SEMANTIC_STRATEGIES = ("role_name", "label", "placeholder", "text")
 
 # Best first. A target is judged by how good its strongest surviving strategy is.
 STRATEGY_RANK = ("role_name", "label", "placeholder", "text", "role", "structural")
@@ -93,6 +92,14 @@ STRATEGY_RANK = ("role_name", "label", "placeholder", "text", "role", "structura
 # How far down a strategy's match list to look for the element. A legacy screen
 # has hundreds of cells, so an unscoped positional match must stay reachable.
 MAX_MATCHES_SEARCHED = 40
+
+# How long to look for something before accepting that it is not there. Absence
+# is the one condition whose cost is paid in full every time it holds.
+ABSENCE_TIMEOUT_MS = 750
+
+# The shortest cell text that can serve as a scope. A one or two character cell
+# is a row number, not a caption, and matches most of the rows on the screen.
+MIN_SCOPE_CHARS = 3
 
 # How long to keep trying to resolve a candidate scope before accepting that it
 # genuinely does not apply to this element.
@@ -283,6 +290,7 @@ class WebSurface(Surface):
     async def describe_target(
         self, handle: Handle, frame: list[str], description: str,
         *, content_varies: bool = False, avoid: tuple[str, ...] = (),
+        anchors: tuple[str, ...] = (),
     ) -> ElementTarget:
         """Harvest every way to address this element, keep only those that find it."""
         await self.settle()
@@ -292,22 +300,45 @@ class WebSurface(Surface):
 
         facts = await handle.evaluate(JS_FACTS)
         role, name = _parse_aria_header(await handle.aria_snapshot())
+        # A container may be named by a supplied value; the control inside it
+        # never may. Anchors are therefore still barred from every strategy.
         candidates = [
             s for s in _candidate_strategies(role, name, facts, content_varies)
-            if not _carries(s, avoid)
+            if not _carries(s, avoid + anchors)
         ]
 
         # Ordered by preference, so that a tie between equally good strategies
         # is settled in favour of the simplest and most readable description.
         scopes: list[Scope | None] = [None]
         for text in (facts.get("labelCell"), facts.get("rowText")):
-            if not text or any(v and v in text for v in avoid):
+            if not text or len(text.strip()) < MIN_SCOPE_CHARS:
+                continue
+            if any(v and v in text for v in avoid):
                 continue
             candidate = ContainerWithTextScope(
                 container_role="row", text=LiteralValue(value=_shorten(text))
             )
             if candidate not in scopes:
                 scopes.append(candidate)
+
+        # A row picked out by an identifier the caller supplied, e.g. "the row
+        # for the member number I was given". Recorded as the literal we can
+        # verify against the screen in front of us; the compiler promotes it to
+        # the parameter it came from, so replay looks for its own value.
+        #
+        # Never while reading. A read target's value is the thing a later
+        # assertion compares, and addressing it by that same value would make
+        # the assertion prove itself.
+        if not content_varies:
+            row_all = facts.get("rowAll") or ""
+            for anchor in anchors:
+                if not anchor or anchor not in row_all:
+                    continue
+                candidate = ContainerWithTextScope(
+                    container_role="row", text=LiteralValue(value=anchor)
+                )
+                if candidate not in scopes:
+                    scopes.append(candidate)
 
         # Judge each scope by its strongest surviving strategy, then by how far
         # down the match list it has to count, then prefer no scope at all.
@@ -484,6 +515,17 @@ class WebSurface(Surface):
             except Exception as exc:
                 return False, str(exc)
             return True, f"resolved via {resolution.strategy_used}"
+
+        if kind == "element_absent":
+            # Proving something is not there means waiting for it, and the whole
+            # resolve budget would be spent on every check. The screen has
+            # already been settled by the time a condition is evaluated, so a
+            # short look is enough to tell absent from still-arriving.
+            try:
+                await self.resolve(condition.target, params, ABSENCE_TIMEOUT_MS)
+            except Exception:
+                return True, f"{condition.target.description!r} is not on screen"
+            return False, f"{condition.target.description!r} is on screen"
 
         if kind == "value_equals":
             expected = resolve_value(condition.expected, params)

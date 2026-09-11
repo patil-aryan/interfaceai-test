@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import time
 import uuid
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin
@@ -20,7 +21,7 @@ from computer_use.discovery.tools import (
 )
 from computer_use.evidence.sink import EventSink, RunRecorder
 from computer_use.guardrails.policy import Allowlist
-from computer_use.schema.capability import Action, ElementTarget
+from computer_use.schema.capability import Action, ElementTarget, is_unanchored
 from computer_use.schema.event import EventType, Level, RunKind
 from computer_use.surfaces.base import Surface, TargetNotFound
 
@@ -274,6 +275,7 @@ class DiscoveryAgent:
         harvested = await self._surface.describe_target(
             handle, target.frame, target.description,
             content_varies=True, avoid=self._avoid(outcome),
+            anchors=self._anchors(),
         )
         return harvested, None
 
@@ -305,7 +307,9 @@ class DiscoveryAgent:
         # It is finished when the screen it produced has stopped changing.
         before = await self._signature() if action in CHANGES_THE_SCREEN else None
         try:
-            step = await self._act(action, args, intent, self._avoid(outcome))
+            step = await self._act(
+                action, args, intent, self._avoid(outcome), self._anchors()
+            )
             if before is not None:
                 await self._surface.settle(changed_from=before)
         except TargetNotFound as exc:
@@ -328,6 +332,19 @@ class DiscoveryAgent:
                      level=Level.WARN, detail={"chars": len(step.read_value or "")})
             return too_wide, False
 
+        adrift = _not_anchored(step)
+        if adrift is not None:
+            rec.emit(EventType.ACTION_FAILED, f"Read is held in place by nothing: {intent}",
+                     level=Level.WARN,
+                     detail={"nth": step.target.nth if step.target else None})
+            return adrift, False
+
+        mistyped = self._wrong_type(step)
+        if mistyped is not None:
+            rec.emit(EventType.ACTION_FAILED, f"Read does not match its declared type: {intent}",
+                     level=Level.WARN, detail={"output": step.output})
+            return mistyped, False
+
         step.urls_after = await self._safe_urls()
         observation = await self._surface.observe()
         step.frames_after = {k: _clip(v) for k, v in observation.frames.items()}
@@ -344,7 +361,7 @@ class DiscoveryAgent:
 
     async def _act(
         self, action: Action, args: dict[str, Any], intent: str,
-        avoid: tuple[str, ...] = (),
+        avoid: tuple[str, ...] = (), anchors: tuple[str, ...] = (),
     ) -> RecordedStep:
         """Do it, and harvest the locator chain while the element is still in front of us."""
         surface = self._surface
@@ -373,7 +390,8 @@ class DiscoveryAgent:
         # Harvest and read first. Activating a link navigates away and detaches
         # the element, so anything we want to know about it must be asked now.
         recorded = await surface.describe_target(
-            handle, target.frame, intent, content_varies=reading, avoid=avoid
+            handle, target.frame, intent, content_varies=reading,
+            avoid=avoid, anchors=anchors,
         )
         value = await surface.read(handle) if reading else None
 
@@ -394,6 +412,57 @@ class DiscoveryAgent:
             output=args.get("output") if reading else None,
             read_value=value.strip() if value is not None else None,
             options=offered,
+        )
+
+    def _wrong_type(self, step: RecordedStep) -> str | None:
+        """Reject a read whose value cannot be the type the contract declares.
+
+        Both of these cells sit in the row captioned SAVINGS, so both are
+        properly anchored and neither looks wrong on its own. Only the contract
+        knows that `savings_balance` is a decimal, which makes "0001-100253-01"
+        the account number one column too far left. This is the declared type
+        earning its keep at the moment it can still be acted on.
+        """
+        if step.action is not Action.READ or step.output is None:
+            return None
+        if step.read_value is None:
+            return None
+        declared = next((o for o in self._spec.outputs if o.name == step.output), None)
+        if declared is None:
+            return None
+        value = step.read_value.strip()
+
+        if declared.type == "decimal":
+            try:
+                Decimal(value.replace(",", "").replace("$", ""))
+            except InvalidOperation:
+                return (
+                    f"{step.output} is declared as a decimal amount, and that cell holds "
+                    f"{value!r}, which is not a number. You have the right row but the "
+                    f"wrong column. Raise `nth` to move further along the row until you "
+                    f"reach the cell under the amount heading."
+                )
+        if declared.type == "enum" and declared.values and value not in declared.values:
+            allowed = ", ".join(declared.values)
+            return (
+                f"{step.output} must be one of: {allowed}. That cell holds {value!r}. "
+                f"You have the right row but the wrong column; change `nth` to reach the "
+                f"cell holding one of those values."
+            )
+        return None
+
+    def _anchors(self) -> tuple[str, ...]:
+        """Supplied values that identify one record, and so may name a container.
+
+        The general rule is that no locator is built out of a value this run
+        touched. A unique key is the one exception worth making: "the SELECT
+        link in the row for the member number I was given" is only expressible
+        by naming that row, and the number is a parameter, so replay substitutes
+        whichever one it was called with. A non-unique value such as a surname
+        is excluded by definition, because it matches more than one row.
+        """
+        return tuple(
+            i.example for i in self._spec.inputs if i.unique_key and i.example
         )
 
     def _avoid(self, outcome: DiscoveryOutcome) -> tuple[str, ...]:
@@ -518,6 +587,32 @@ def _scrub(text: str, known: tuple[str, ...]) -> str:
     for value in sorted((v for v in known if v and len(v) >= 4), key=len, reverse=True):
         text = text.replace(value, "<redacted>")
     return text
+
+
+def _not_anchored(step: RecordedStep) -> str | None:
+    """Reject a read that could only be found again by counting, and say how to fix it.
+
+    Every cell on these screens has role `cell`, so a cell picked out purely by
+    its number is the 27th cell on the screen the recording happened to see. It
+    is also the shape a caption produces: a caption is the first cell in its
+    row, so there is no label beside it and no row text to scope by, and the
+    harvester has nothing to hold on to. Catching it here, rather than warning
+    about it after the run, means the model can point somewhere better while it
+    is still looking at the screen.
+    """
+    if step.action is not Action.READ or step.output is None:
+        return None
+    if not is_unanchored(step.target):
+        return None
+    return (
+        "That read can only be found again by counting cells from the top of the "
+        "screen, so it would break as soon as the record has one more row than "
+        "this one. It is also what happens when you point at a caption rather "
+        "than the value, because a caption is the first cell in its row and has "
+        "nothing beside it to name it by. Point at the cell holding the value, "
+        "usually immediately to the right of its caption, and pass `within_row` "
+        "with that caption's text."
+    )
 
 
 def _not_a_single_value(step: RecordedStep) -> str | None:

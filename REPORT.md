@@ -83,6 +83,24 @@ the control. Container scopes resolve to the **innermost** match: nested tables
 make ancestors match too, and taking the first silently reads a different
 member's row.
 
+**A locator may be bound to a parameter.** A scope is normally recorded as
+literal text, but text identifying one record is promoted by the compiler to a
+parameter reference, so a step reads "the `SELECT` link in the row containing
+`{member_number}`" rather than the row it happened to be recorded against. Four
+members share the surname `VANCE` and two of them share a first name, a branch
+and a status, so on that screen nothing else separates them. The rule is narrow:
+a *container* may be named by an input the contract marks `unique_key`, and a
+*control* may never be named by any value the run touched.
+
+**Some answers have no message.** A member holding no savings account is shown a
+profile with no savings row, and the application says nothing at all. That is
+the caller's answer, not a fault, so the condition vocabulary includes
+`element_absent`. It is only accepted as a detector after a confirming run shows
+the same element present under ordinary inputs, which separates "missing for
+this input" from "the locator is broken", and it is bound to the step that went
+looking, because the absence of a savings row is equally true of the sign-on
+screen.
+
 **Drift** is measured on success. Every resolution compares the strategy that
 fired against the one recorded. A capability that starts resolving by a weaker
 strategy still works and is decaying, and that appears on the result before it
@@ -102,6 +120,8 @@ been made to fire:
 | Condition | Reported as |
 |---|---|
 | a member that does not exist | `business_outcome MEMBER_NOT_FOUND` |
+| a surname nobody on file has | `business_outcome NO_MEMBER_WITH_SURNAME` |
+| a member holding no savings account | `business_outcome NO_SAVINGS_ACCOUNT` |
 | a deposit below the product minimum | `business_outcome INVALID_DEPOSIT_AMOUNT` |
 | a malformed member number | `failed input_invalid`, before any step runs |
 | a one-off maintenance notice | `success`, with `dismissed_interstitial` recorded |

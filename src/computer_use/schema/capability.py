@@ -185,6 +185,11 @@ Locator = Annotated[
     Field(discriminator="strategy"),
 ]
 
+# Strategies that address a control by what it *is*, rather than by where it sits
+# or what shape of markup surrounds it. A target with none of these is held in
+# place only by its position.
+SEMANTIC_STRATEGIES = ("role_name", "label", "placeholder", "text")
+
 
 class RegionScope(BaseModel):
     """Search only inside a named landmark, e.g. the Member Search panel."""
@@ -232,6 +237,20 @@ class ElementTarget(BaseModel):
     nth: int = 0  # disambiguator when several controls match
 
 
+def is_unanchored(target: ElementTarget | None) -> bool:
+    """Whether a target is held in place by nothing but its position on screen.
+
+    `role=cell, nth=27` counts cells from the top of the frame. It is correct on
+    the screen it was recorded from and wrong the moment that screen grows a
+    row, which happens when the member being read simply has one more account
+    than the member it was recorded against. A scope or a strategy that names
+    the element is enough to anchor it; a bare position is not.
+    """
+    if target is None or target.scope is not None or target.nth == 0:
+        return False
+    return not any(s.strategy in SEMANTIC_STRATEGIES for s in target.strategies)
+
+
 # --------------------------------------------------------------------------
 # Conditions: used for both step checkpoints and business-outcome detectors
 # --------------------------------------------------------------------------
@@ -254,6 +273,18 @@ class ElementPresent(BaseModel):
     target: ElementTarget
 
 
+class ElementAbsent(BaseModel):
+    """The control is not on this screen.
+
+    The mirror of element_present, and the only way to state a situation whose
+    signal is a missing row rather than a message: a member who holds no savings
+    account has no savings row, and the application says nothing about it.
+    """
+
+    kind: Literal["element_absent"] = "element_absent"
+    target: ElementTarget
+
+
 class ValueEquals(BaseModel):
     kind: Literal["value_equals"] = "value_equals"
     target: ElementTarget
@@ -266,7 +297,7 @@ class UrlMatches(BaseModel):
 
 
 Condition = Annotated[
-    TextPresent | TextAbsent | ElementPresent | ValueEquals | UrlMatches,
+    TextPresent | TextAbsent | ElementPresent | ElementAbsent | ValueEquals | UrlMatches,
     Field(discriminator="kind"),
 ]
 
@@ -358,6 +389,13 @@ class BusinessOutcome(BaseModel):
     description: str
     detector: Condition
     terminal: bool = True
+
+    # Where this detector means anything, if it does not mean the same thing
+    # everywhere. "NO MEMBER MATCHING" is specific wording and says the same
+    # thing on any screen that shows it. The absence of a savings row is true of
+    # the sign-on screen, the search results and every error page, so it is only
+    # an answer at the step that went looking for one.
+    at_step: str | None = None
 
 
 # --------------------------------------------------------------------------

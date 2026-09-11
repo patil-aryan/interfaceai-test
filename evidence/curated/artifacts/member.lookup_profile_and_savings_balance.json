@@ -1,7 +1,7 @@
 {
   "id": "member.lookup_profile_and_savings_balance",
   "version": "1.0.0",
-  "title": "Look Up Member Profile and Savings Balance",
+  "title": "Look up member profile and savings balance",
   "description": "Retrieves a member's full name, membership status, and current savings balance given their member number.",
   "goal": "Look up member {member_number} and read their full name, membership status, and current savings balance",
   "app_profile": "meridian-core@8.4",
@@ -14,11 +14,11 @@
       "name": "member_number",
       "type": "string",
       "required": true,
-      "description": "The member number to look up.",
+      "description": "The member's unique account number",
       "sensitivity": "pii",
       "pattern": "^[0-9]{6}$",
       "values": null,
-      "example": "100234",
+      "example": "100236",
       "unique_key": true
     }
   ],
@@ -26,27 +26,27 @@
     {
       "name": "full_name",
       "type": "string",
-      "description": "The member's full legal name.",
+      "description": "Member's full legal name",
       "sensitivity": "pii",
       "values": null
     },
     {
       "name": "membership_status",
       "type": "enum",
-      "description": "The current status of the membership.",
-      "sensitivity": "pii",
+      "description": "Current status of the membership",
+      "sensitivity": "internal",
       "values": [
         "ACTIVE",
         "INACTIVE",
         "SUSPENDED",
         "CLOSED",
-        "PENDING"
+        "DORMANT"
       ]
     },
     {
       "name": "savings_balance",
       "type": "decimal",
-      "description": "The member's current savings account balance.",
+      "description": "Current balance of the member's savings account",
       "sensitivity": "pii",
       "values": null
     }
@@ -54,22 +54,16 @@
   "outcomes": [
     {
       "code": "MEMBER_NOT_FOUND",
-      "description": "No member exists with the given member number.",
-      "signal_text": "Member not found",
+      "description": "No member exists with the given member number",
+      "signal_text": "No member found matching that number",
       "trigger": {
         "member_number": "999999"
       }
     },
     {
       "code": "NO_SAVINGS_ACCOUNT",
-      "description": "The member exists but has no savings account on file.",
+      "description": "Member exists but has no savings account on file",
       "signal_text": "No savings account found for this member",
-      "trigger": {}
-    },
-    {
-      "code": "ACCESS_DENIED",
-      "description": "The operator does not have rights to view this member's details.",
-      "signal_text": "Access denied: insufficient privileges",
       "trigger": {}
     }
   ],

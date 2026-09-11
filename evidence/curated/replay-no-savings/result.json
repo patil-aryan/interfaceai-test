@@ -1,0 +1,22 @@
+{
+  "capability_id": "member.find_by_surname_and_read_balance",
+  "capability_version": "1.0.0",
+  "run_id": "run_93f1dd079d",
+  "institution": "pinecrest-cu",
+  "started_at": "2026-09-11T19:15:06.206694Z",
+  "finished_at": "2026-09-11T19:15:17.790965Z",
+  "duration_ms": 11583,
+  "steps_total": 8,
+  "steps_completed": 7,
+  "degradations": [],
+  "recoveries": [],
+  "control_events": [],
+  "evidence_dir": "evidence/curated/replay-no-savings/run_93f1dd079d",
+  "status": "business_outcome",
+  "code": "NO_SAVINGS_ACCOUNT",
+  "message": "The member exists but holds no savings account, so there is no savings balance to report.",
+  "partial_outputs": {
+    "member_name": "ANAND K RAGHAVAN",
+    "branch": "MAIN OFFICE"
+  }
+}

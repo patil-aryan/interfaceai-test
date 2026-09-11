@@ -7,14 +7,26 @@ a case it does not.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from computer_use.discovery.spec import GoalSpec
 from computer_use.replay.engine import ReplayEngine
-from computer_use.schema.capability import BusinessOutcome, CapabilityArtifact, TextPresent
+from computer_use.schema.capability import (
+    BusinessOutcome,
+    CapabilityArtifact,
+    ElementAbsent,
+    TextPresent,
+)
+from computer_use.schema.result import FailureClass
 
 # A detector shorter than this is not distinctive enough to trust.
 MIN_DETECTOR_CHARS = 6
+
+# The shortest probe value worth stripping out of a detector. Below this a value
+# is a letter rather than an identifier, and removing it would eat the wording:
+# stripping "V" out of "INVALID ENTRY" leaves a phrase that is on no screen.
+MIN_STRIPPABLE_CHARS = 3
 
 WORDING_TOOL = {
     "name": "report_wording",
@@ -60,12 +72,19 @@ async def verify_outcomes(
         # still holds what was guessed before anything had been seen.
         base = {i.name: i.example for i in artifact.inputs if i.example}
         params = {**base, **declared.trigger}
-        await engine.run(artifact, params, institution=institution, unattended=False)
+        result = await engine.run(artifact, params, institution=institution, unattended=False)
         observation = await surface.observe()
         screen = "\n".join(f"--- {k or 'main'} ---\n{v}" for k, v in observation.frames.items())
 
         reported = await _ask_wording(client, model, declared.description, screen)
         if reported is None:
+            missing = await _absence_detector(engine, artifact, result, base, institution)
+            if missing is not None:
+                verified.append(BusinessOutcome(
+                    code=declared.code, description=declared.description,
+                    detector=missing[0], at_step=missing[1],
+                ))
+                continue
             dropped.append(f"{declared.code} (the trigger did not produce it)")
             continue
 
@@ -86,6 +105,39 @@ async def verify_outcomes(
         ))
 
     return verified, dropped
+
+
+async def _absence_detector(
+    engine: ReplayEngine, artifact: CapabilityArtifact, result: Any,
+    baseline_params: dict[str, str], institution: str,
+) -> tuple[ElementAbsent, str] | None:
+    """Turn "the step could not find what it came for" into a detector, once confirmed.
+
+    Some situations have no message. A member who holds no savings account is
+    shown a profile that simply has no savings row, and the application says
+    nothing; the missing row is the whole signal.
+
+    The confirming run is what makes this safe. An element that is missing under
+    the trigger *and* missing on an ordinary run is a broken locator, and
+    accepting it would turn every future breakage into a cheerful business
+    answer. Only an element that is reliably there, and absent just for this
+    trigger, earns a detector.
+    """
+    if getattr(result, "status", None) != "failed":
+        return None
+    failure = result.failure
+    if failure.classification != FailureClass.TARGET_NOT_FOUND:
+        return None
+    step = next((s for s in artifact.steps if s.id == failure.step_id), None)
+    if step is None or step.target is None:
+        return None
+
+    baseline = await engine.run(
+        artifact, baseline_params, institution=institution, unattended=False
+    )
+    if getattr(baseline, "status", None) != "success":
+        return None
+    return ElementAbsent(target=step.target), step.id
 
 
 async def _ask_wording(client: Any, model: str, situation: str, screen: str) -> str | None:
@@ -128,6 +180,6 @@ def _without_trigger_values(phrase: str, trigger: dict[str, str]) -> str:
     """
     cleaned = phrase
     for value in trigger.values():
-        if value:
-            cleaned = cleaned.replace(value, " ")
+        if value and len(value) >= MIN_STRIPPABLE_CHARS:
+            cleaned = re.sub(rf"\b{re.escape(value)}\b", " ", cleaned)
     return " ".join(cleaned.split()).strip(" -:,.")

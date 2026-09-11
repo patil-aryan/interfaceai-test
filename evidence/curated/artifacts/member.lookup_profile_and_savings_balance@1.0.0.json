@@ -2,10 +2,10 @@
   "schema_version": "1.0",
   "id": "member.lookup_profile_and_savings_balance",
   "version": "1.0.0",
-  "title": "Look Up Member Profile and Savings Balance",
+  "title": "Look up member profile and savings balance",
   "description": "Retrieves a member's full name, membership status, and current savings balance given their member number.",
   "app_profile": "meridian-core@8.4",
-  "status": "draft",
+  "status": "approved",
   "risk_tier": "read_only",
   "requires_authenticated_session": true,
   "inputs": [
@@ -13,11 +13,11 @@
       "name": "member_number",
       "type": "string",
       "required": true,
-      "description": "The member number to look up.",
+      "description": "The member's unique account number",
       "sensitivity": "pii",
       "pattern": "^[0-9]{6}$",
       "values": null,
-      "example": "100234",
+      "example": "100236",
       "unique_key": true
     }
   ],
@@ -25,27 +25,27 @@
     {
       "name": "full_name",
       "type": "string",
-      "description": "The member's full legal name.",
+      "description": "Member's full legal name",
       "sensitivity": "pii",
       "values": null
     },
     {
       "name": "membership_status",
       "type": "enum",
-      "description": "The current status of the membership.",
-      "sensitivity": "pii",
+      "description": "Current status of the membership",
+      "sensitivity": "internal",
       "values": [
         "ACTIVE",
         "INACTIVE",
         "SUSPENDED",
         "CLOSED",
-        "PENDING"
+        "DORMANT"
       ]
     },
     {
       "name": "savings_balance",
       "type": "decimal",
-      "description": "The member's current savings account balance.",
+      "description": "Current balance of the member's savings account",
       "sensitivity": "pii",
       "values": null
     }
@@ -53,7 +53,7 @@
   "steps": [
     {
       "id": "s1",
-      "intent": "Go to the member search page to look up member {member_number}",
+      "intent": "Open the main banking application to search for a member",
       "action": "navigate",
       "target": null,
       "value": {
@@ -80,10 +80,10 @@
     },
     {
       "id": "s2",
-      "intent": "Navigate to Member Inquiry screen",
+      "intent": "Navigate to member inquiry screen",
       "action": "activate",
       "target": {
-        "description": "Navigate to Member Inquiry screen",
+        "description": "Navigate to member inquiry screen",
         "frame": [
           "nav"
         ],
@@ -128,10 +128,10 @@
     },
     {
       "id": "s3",
-      "intent": "Enter member number {member_number} for lookup",
+      "intent": "Enter member number to search",
       "action": "fill",
       "target": {
-        "description": "Enter member number {member_number} for lookup",
+        "description": "Enter member number to search",
         "frame": [
           "work"
         ],
@@ -164,7 +164,7 @@
         "condition": {
           "kind": "value_equals",
           "target": {
-            "description": "Enter member number {member_number} for lookup",
+            "description": "Enter member number to search",
             "frame": [
               "work"
             ],
@@ -204,10 +204,10 @@
     },
     {
       "id": "s4",
-      "intent": "Search for member {member_number}",
+      "intent": "Search for the member by ID",
       "action": "activate",
       "target": {
-        "description": "Search for member {member_number}",
+        "description": "Search for the member by ID",
         "frame": [
           "work"
         ],
@@ -252,10 +252,10 @@
     },
     {
       "id": "s5",
-      "intent": "Read the member's full legal name",
+      "intent": "Read the member's full legal name from the profile",
       "action": "read",
       "target": {
-        "description": "Read the member's full legal name",
+        "description": "Read the member's full legal name from the profile",
         "frame": [
           "work"
         ],
@@ -287,10 +287,10 @@
     },
     {
       "id": "s6",
-      "intent": "Read the member's current membership status",
+      "intent": "Read the membership status from the profile",
       "action": "read",
       "target": {
-        "description": "Read the member's current membership status",
+        "description": "Read the membership status from the profile",
         "frame": [
           "work"
         ],
@@ -322,10 +322,10 @@
     },
     {
       "id": "s7",
-      "intent": "Read the member's primary savings account balance",
+      "intent": "Read the savings account balance from the accounts table",
       "action": "read",
       "target": {
-        "description": "Read the member's primary savings account balance",
+        "description": "Read the savings account balance from the accounts table",
         "frame": [
           "work"
         ],
@@ -392,7 +392,7 @@
   "outcomes": [
     {
       "code": "MEMBER_NOT_FOUND",
-      "description": "No member exists with the given member number.",
+      "description": "No member exists with the given member number",
       "detector": {
         "kind": "text_present",
         "text": "NO MEMBER MATCHING",
@@ -405,9 +405,9 @@
   ],
   "provenance": {
     "goal": "Look up member {member_number} and read their full name, membership status, and current savings balance",
-    "discovery_run_id": "disc_b695e56345",
+    "discovery_run_id": "disc_573bd85006",
     "model": "claude-sonnet-5",
-    "recorded_at": "2026-09-11T17:53:49.036365Z",
+    "recorded_at": "2026-09-11T18:30:50.124419Z",
     "recorded_against_institution": "pinecrest-cu",
     "surface_kind": "legacy_web"
   },

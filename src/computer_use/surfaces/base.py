@@ -254,13 +254,17 @@ class Surface(ABC):
     async def describe_target(
         self, handle: Handle, frame: list[str], description: str,
         *, content_varies: bool = False, avoid: tuple[str, ...] = (),
+        anchors: tuple[str, ...] = (),
     ) -> ElementTarget:
         """Every verified way to find this element again, ranked best first.
 
         Set content_varies for an element whose text is the thing being read: a
         locator derived from that text would only ever find this one record.
         Pass the run's input values as `avoid`, so no locator or scope is built
-        out of text that will be different on the next invocation.
+        out of text that will be different on the next invocation. Pass the
+        subset of those that uniquely identify a record as `anchors`: a
+        container may be found by one, because the compiler turns it back into
+        the parameter it came from and replay substitutes its own value.
         """
 
     @abstractmethod

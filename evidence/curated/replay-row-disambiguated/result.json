@@ -1,0 +1,21 @@
+{
+  "capability_id": "member.find_by_surname_and_read_balance",
+  "capability_version": "1.0.0",
+  "run_id": "run_d3cb132860",
+  "institution": "pinecrest-cu",
+  "started_at": "2026-09-11T19:15:05.031708Z",
+  "finished_at": "2026-09-11T19:15:05.806707Z",
+  "duration_ms": 774,
+  "steps_total": 8,
+  "steps_completed": 8,
+  "degradations": [],
+  "recoveries": [],
+  "control_events": [],
+  "evidence_dir": "evidence/curated/replay-row-disambiguated/run_d3cb132860",
+  "status": "success",
+  "outputs": {
+    "member_name": "THEODORE J VANCE",
+    "branch": "WESTBROOK",
+    "savings_balance": "112.00"
+  }
+}

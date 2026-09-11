@@ -23,9 +23,10 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 from computer_use.discovery.agent import DiscoveryAgent
-from computer_use.discovery.compiler import compile_artifact
+from computer_use.discovery.compiler import compile_artifact, fragile_targets
 from computer_use.discovery.contract import propose_contract, write_spec
 from computer_use.discovery.env import load_env
 from computer_use.discovery.redact import redacted_trace
@@ -40,6 +41,16 @@ from computer_use.surfaces.web import WebSurface
 DEFAULT_MODEL = "claude-sonnet-5"
 GOAL_DIR = Path("artifacts/goals")
 CAPABILITY_DIR = Path("artifacts/capabilities")
+
+
+def _detector(condition: Any) -> str:
+    """Say how an outcome is recognised, whatever kind of condition recognises it."""
+    if condition.kind in ("text_present", "text_absent"):
+        return repr(condition.text)
+    if condition.kind in ("element_present", "element_absent"):
+        gone = "the absence of " if condition.kind == "element_absent" else ""
+        return f"{gone}{condition.target.description!r}"
+    return condition.kind
 
 
 def require_api_key() -> None:
@@ -170,10 +181,12 @@ async def discover(args: argparse.Namespace) -> int:
     print(f"  steps         {len(artifact.steps)}, {checkpointed} with a checkpoint, "
           f"{parameterised} parameterised")
     for o in artifact.outcomes:
-        print(f"  outcome       {o.code} confirmed, detected by {o.detector.text!r}")
+        print(f"  outcome       {o.code} confirmed, detected by {_detector(o.detector)}")
     for reason in dropped or []:
         print(f"  outcome       dropped: {reason}")
     print(f"  success       {artifact.success_condition.description}")
+    for warning in fragile_targets(artifact):
+        print(f"  FRAGILE       {warning}")
     print("\nreplay it with:")
     print(f"  python -m computer_use.replay {artifact.id} \\")
     print(f"      --param {artifact.inputs[0].name}=<value> --attended"

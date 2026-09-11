@@ -13,6 +13,8 @@ moment of failure.
 | `replay-bad-input/` | a malformed member number, refused by the capability's own contract before any step ran |
 | `replay-app-error/` | the product's error screen, recognised by the app profile and reported as `app_error` rather than a bare checkpoint failure |
 | `replay-session-recovered/` | the session timing out mid-flow: detected, re-authenticated, and the read-only flow replayed from its first step |
+| `replay-row-disambiguated/` | four members share a surname and two share a name, a branch and a status; the row is picked by the member number the caller supplied, not by anything on the recording |
+| `replay-no-savings/` | a member who holds no savings account. There is no savings row and the application says nothing, so the answer is the absence itself, returned as a business outcome with the name and branch it did read |
 | `replay-policy-blocked/` | an irreversible capability refused by the allowlist before a browser did anything |
 | `replay-deposit-rejected/` | an opening deposit below the product minimum. A business outcome, detected by wording confirmed against the running application |
 | `replay-write-committed/` | the same capability permitted, opening a real sub-account for a member it was not recorded against |
