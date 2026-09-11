@@ -12,15 +12,17 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
+import uuid
 from pathlib import Path
 
+from computer_use.discovery.env import load_env
+from computer_use.escalation.handoff import HandoffBroker
+from computer_use.guardrails.policy import DEFAULT_ALLOWLIST_PATH, load_allowlist
 from computer_use.replay.engine import ReplayEngine
-from computer_use.schema.capability import (
-    CapabilityArtifact,
-    ElementTarget,
-    RoleNameLocator,
-)
+from computer_use.schema.capability import CapabilityArtifact
+from computer_use.schema.profile import AppProfile, load_app_profile
 from computer_use.surfaces.base import Surface
 from computer_use.surfaces.web import WebSurface
 
@@ -48,50 +50,52 @@ def parse_params(pairs: list[str]) -> dict[str, str]:
     return params
 
 
-async def sign_on_stub(surface: Surface, base_url: str, user: str, password: str) -> None:
-    """Establish a session by hand.
+async def sign_on(surface: Surface, profile: AppProfile, base_url: str,
+                  user: str, password: str) -> None:
+    """Establish a session using the profile's sign-on definition.
 
-    TEMPORARY. This belongs in the app profile, which knows the sign-on screen
-    for a vendor product and resolves credentials from a secret provider. Until
-    that exists, the caller does it, which is the same division of
-    responsibility performed manually. Credentials never enter an artifact.
+    Sign-on belongs to the application, not to any one capability, which is why
+    it lives in the app profile and not in an artifact. Credentials are supplied
+    here and never enter an artifact, a log, or the model's context.
     """
-    await surface.navigate(f"{base_url}/login")
-    for field, value in (("USER ID", user), ("PASSWORD", password)):
-        handle, _ = await surface.resolve(
-            ElementTarget(
-                description=field,
-                strategies=[RoleNameLocator(role="textbox", name=field)],
-                recorded_strategy="role_name",
-            ),
-            {},
-        )
+    if profile.sign_on is None:
+        raise SystemExit(f"app profile {profile.id} defines no sign-on")
+    spec = profile.sign_on
+    await surface.navigate(f"{base_url.rstrip('/')}{spec.path}")
+    for target, value in ((spec.username_field, user), (spec.password_field, password)):
+        handle, _ = await surface.resolve(target, {})
         await surface.fill(handle, value)
-    handle, _ = await surface.resolve(
-        ElementTarget(
-            description="Sign On button",
-            strategies=[RoleNameLocator(role="button", name="Sign On")],
-            recorded_strategy="role_name",
-        ),
-        {},
-    )
+    handle, _ = await surface.resolve(spec.submit, {})
     await surface.activate(handle)
+    await surface.wait_for(spec.success, {}, 10_000)
 
 
 async def replay(args: argparse.Namespace) -> int:
     artifact = CapabilityArtifact.model_validate_json(
         find_artifact(args.artifact).read_text(encoding="utf-8")
     )
+    run_id = f"run_{uuid.uuid4().hex[:10]}"
+    handoff = HandoffBroker(Path(args.evidence_dir) / run_id, wait_seconds=args.operator_wait)
+    profile = load_app_profile(artifact.app_profile)
     surface = WebSurface(headless=not args.headed, slow_mo_ms=args.slow)
     await surface.start()
     try:
-        if artifact.requires_authenticated_session:
-            await sign_on_stub(surface, args.base_url, args.user, args.password)
         engine = ReplayEngine(
-            surface, base_url=args.base_url, evidence_root=args.evidence_dir
+            surface,
+            base_url=args.base_url,
+            evidence_root=args.evidence_dir,
+            policy=load_allowlist(args.allowlist),
+            profile=profile,
+            credentials=(args.user, args.password),
+            handoff=handoff,
+            confirm_irreversible=not args.no_confirm,
         )
         result = await engine.run(
-            artifact, parse_params(args.param), institution=args.institution
+            artifact,
+            parse_params(args.param),
+            institution=args.institution,
+            unattended=not args.attended,
+            run_id=run_id,
         )
     finally:
         await surface.stop()
@@ -101,6 +105,7 @@ async def replay(args: argparse.Namespace) -> int:
 
 
 def main() -> int:
+    load_env()          # before argparse, which reads defaults from the environment
     parser = argparse.ArgumentParser(prog="python -m computer_use.replay",
                                      description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -110,11 +115,21 @@ def main() -> int:
     parser.add_argument("--base-url", default="http://127.0.0.1:8081")
     parser.add_argument("--institution", default="pinecrest-cu")
     parser.add_argument("--evidence-dir", default="evidence")
+    parser.add_argument("--allowlist", default=str(DEFAULT_ALLOWLIST_PATH),
+                        help="path to the permissions file")
+    parser.add_argument("--operator-wait", type=int, default=300, metavar="SECONDS",
+                        help="how long to hold the session open for a person")
+    parser.add_argument("--no-confirm", action="store_true",
+                        help="do not ask a person before an irreversible step")
+    parser.add_argument("--attended", action="store_true",
+                        help="a human is watching; relaxes the approved-artifact requirement")
     parser.add_argument("--headed", action="store_true", help="show the browser")
     parser.add_argument("--slow", type=int, default=0, metavar="MS",
                         help="pause between actions, to watch it work")
-    parser.add_argument("--user", default="operator1", help="operator for the session stub")
-    parser.add_argument("--password", default="changeme")
+    parser.add_argument("--user", default=os.environ.get("TARGET_APP_USERNAME", "operator1"),
+                        help="operator to sign in as; also read from TARGET_APP_USERNAME")
+    parser.add_argument("--password", default=os.environ.get("TARGET_APP_PASSWORD", ""),
+                        help="read from TARGET_APP_PASSWORD; never stored in an artifact")
     return asyncio.run(replay(parser.parse_args()))
 
 

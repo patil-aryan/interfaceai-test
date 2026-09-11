@@ -1,0 +1,77 @@
+{
+  "id": "member.lookup_profile_and_savings_balance",
+  "version": "1.0.0",
+  "title": "Look Up Member Profile and Savings Balance",
+  "description": "Retrieves a member's full name, membership status, and current savings balance given their member number.",
+  "goal": "Look up member {member_number} and read their full name, membership status, and current savings balance",
+  "app_profile": "meridian-core@8.4",
+  "institution": "pinecrest-cu",
+  "surface_kind": "legacy_web",
+  "risk_tier": "read_only",
+  "requires_authenticated_session": true,
+  "inputs": [
+    {
+      "name": "member_number",
+      "type": "string",
+      "required": true,
+      "description": "The member number to look up.",
+      "sensitivity": "pii",
+      "pattern": "^[0-9]{6}$",
+      "values": null,
+      "example": "100234",
+      "unique_key": true
+    }
+  ],
+  "outputs": [
+    {
+      "name": "full_name",
+      "type": "string",
+      "description": "The member's full legal name.",
+      "sensitivity": "pii",
+      "values": null
+    },
+    {
+      "name": "membership_status",
+      "type": "enum",
+      "description": "The current status of the membership.",
+      "sensitivity": "pii",
+      "values": [
+        "ACTIVE",
+        "INACTIVE",
+        "SUSPENDED",
+        "CLOSED",
+        "PENDING"
+      ]
+    },
+    {
+      "name": "savings_balance",
+      "type": "decimal",
+      "description": "The member's current savings account balance.",
+      "sensitivity": "pii",
+      "values": null
+    }
+  ],
+  "outcomes": [
+    {
+      "code": "MEMBER_NOT_FOUND",
+      "description": "No member exists with the given member number.",
+      "signal_text": "Member not found",
+      "trigger": {
+        "member_number": "999999"
+      }
+    },
+    {
+      "code": "NO_SAVINGS_ACCOUNT",
+      "description": "The member exists but has no savings account on file.",
+      "signal_text": "No savings account found for this member",
+      "trigger": {}
+    },
+    {
+      "code": "ACCESS_DENIED",
+      "description": "The operator does not have rights to view this member's details.",
+      "signal_text": "Access denied: insufficient privileges",
+      "trigger": {}
+    }
+  ],
+  "max_steps": 30
+}

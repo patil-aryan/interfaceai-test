@@ -25,6 +25,9 @@ Handle = Any
 DEFAULT_RESOLVE_TIMEOUT_MS = 5_000
 POLL_INTERVAL_S = 0.15
 
+# How long to wait for a screen to finish arriving before acting on it.
+SETTLE_TIMEOUT_MS = 4_000
+
 
 class SurfaceError(Exception):
     """Something went wrong at the surface, below the level of flow logic."""
@@ -205,6 +208,65 @@ class Surface(ABC):
 
     # -- actions -----------------------------------------------------------
 
+    async def signature(self) -> str:
+        """A comparable fingerprint of everything currently on screen."""
+        observation = await self.observe()
+        return "\n".join(f"--{k}--\n{v}" for k, v in observation.frames.items())
+
+    async def settle(
+        self, *, changed_from: str | None = None, timeout_ms: int = SETTLE_TIMEOUT_MS
+    ) -> str:
+        """Wait until the screen has changed from `changed_from`, then stopped changing.
+
+        Both halves matter. Waiting only for stability accepts the screen the
+        action was supposed to replace, because an old screen is perfectly
+        stable. Waiting only for change accepts a half-rendered one.
+        """
+        deadline = time.monotonic() + timeout_ms / 1000
+        previous: str | None = None
+        while time.monotonic() < deadline:
+            try:
+                current = await self.signature()
+            except Exception:
+                current = None
+            if current is not None:
+                if current == previous and (changed_from is None or current != changed_from):
+                    return current
+                previous = current
+            await asyncio.sleep(POLL_INTERVAL_S)
+        return previous or ""
+
+    async def wait_for_ready(self, timeout_ms: int = 5_000) -> None:
+        """Poll until the surface stops changing shape, after a navigation or sign-on."""
+        deadline = time.monotonic() + timeout_ms / 1000
+        previous: list[str] = []
+        while time.monotonic() < deadline:
+            try:
+                current = await self.current_urls()
+            except Exception:
+                current = []
+            if current and current == previous:
+                return
+            previous = current
+            await asyncio.sleep(POLL_INTERVAL_S)
+
+    @abstractmethod
+    async def describe_target(
+        self, handle: Handle, frame: list[str], description: str,
+        *, content_varies: bool = False, avoid: tuple[str, ...] = (),
+    ) -> ElementTarget:
+        """Every verified way to find this element again, ranked best first.
+
+        Set content_varies for an element whose text is the thing being read: a
+        locator derived from that text would only ever find this one record.
+        Pass the run's input values as `avoid`, so no locator or scope is built
+        out of text that will be different on the next invocation.
+        """
+
+    @abstractmethod
+    async def current_urls(self) -> list[str]:
+        """Every location the session currently holds open, however it got there."""
+
     @abstractmethod
     async def navigate(self, url: str) -> None: ...
 
@@ -222,6 +284,10 @@ class Surface(ABC):
 
     @abstractmethod
     async def read(self, handle: Handle) -> str: ...
+
+    @abstractmethod
+    async def options(self, handle: Handle) -> list[str]:
+        """Every value this control offers, if it is a chooser. Empty if it is not."""
 
     # -- conditions --------------------------------------------------------
 

@@ -8,15 +8,24 @@ from __future__ import annotations
 
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
 from flask import (
-    Flask, redirect, render_template, request, session, url_for,
+    Flask,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
 )
 
 from fake_core_banking_app.data import (
-    MEMBERS, OPERATORS, Account, next_account_number, search_by_surname,
+    MEMBERS,
+    OPERATORS,
+    Account,
+    next_account_number,
+    search_by_surname,
 )
 from fake_core_banking_app.faults import FAULTS
 from fake_core_banking_app.field_names import BUILD_ID, field_name
@@ -48,15 +57,17 @@ def current_institution():
 def signed_in() -> bool:
     if FAULTS.session_expired:
         return False
+    if FAULTS.note_request():
+        return False
     expires = session.get("expires_at")
     if not expires:
         return False
-    return datetime.now(timezone.utc) < datetime.fromisoformat(expires)
+    return datetime.now(UTC) < datetime.fromisoformat(expires)
 
 
 def touch_session() -> None:
     session["expires_at"] = (
-        datetime.now(timezone.utc) + timedelta(minutes=SESSION_MINUTES)
+        datetime.now(UTC) + timedelta(minutes=SESSION_MINUTES)
     ).isoformat()
 
 
@@ -65,7 +76,7 @@ def inject_chrome():
     return {
         "inst": current_institution(),
         "operator": session.get("operator_name", ""),
-        "today": datetime.now().strftime("%m/%d"),
+        "today": datetime.now(UTC).strftime("%m/%d"),
     }
 
 
@@ -102,6 +113,7 @@ def login():
         record = OPERATORS.get(user)
         if record and record["password"] == pwd:
             FAULTS.session_expired = False
+            FAULTS._requests_since_sign_on = 0
             session["operator"] = user
             session["operator_name"] = record["name"]
             session["can_open_accounts"] = record["can_open_accounts"]
@@ -156,7 +168,8 @@ def member_inquiry():
     if (r := requires_session("member_inquiry")) is not None:
         return r
 
-    if FAULTS.maintenance_interstitial:
+    if FAULTS.maintenance_interstitial or FAULTS.interstitial_once:
+        FAULTS.interstitial_once = False  # a real notice is shown once, then gone
         return render_template("interstitial.html", target=url_for("member_inquiry"))
 
     if request.method == "POST":
@@ -194,7 +207,8 @@ def member_search():
     """Paginated result list. The automation must pick the correct row."""
     if (r := requires_session("member_inquiry")) is not None:
         return r
-    if FAULTS.maintenance_interstitial:
+    if FAULTS.maintenance_interstitial or FAULTS.interstitial_once:
+        FAULTS.interstitial_once = False
         return render_template("interstitial.html", target=request.full_path)
 
     surname = request.args.get("surname", "")
@@ -306,9 +320,11 @@ def faults_panel():
             FAULTS.clear()
         else:
             FAULTS.slow_response_ms = int(request.form.get("slow_response_ms") or 0)
+            FAULTS.expire_after_requests = int(request.form.get("expire_after_requests") or 0)
+            FAULTS._requests_since_sign_on = 0
             for flag in (
-                "session_expired", "maintenance_interstitial", "validation_error",
-                "permission_denied", "app_error", "force_not_found",
+                "session_expired", "maintenance_interstitial", "interstitial_once",
+                "validation_error", "permission_denied", "app_error", "force_not_found",
             ):
                 setattr(FAULTS, flag, flag in request.form)
         return redirect(url_for("faults_panel"))
@@ -316,4 +332,4 @@ def faults_panel():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", 8081)), debug=False)
+    app.run(host="127.0.0.1", port=int(os.environ.get("PORT", "8081")), debug=False)

@@ -1,0 +1,613 @@
+{
+  "run_id": "disc_3baef8210c",
+  "model": "claude-sonnet-5",
+  "goal": "Open a new sub-account of type {account_type} for member {member_number}, with an opening deposit of {opening_deposit}, and reach the confirmation screen.",
+  "reached_goal": true,
+  "stop_reason": "the model reported the goal met",
+  "summary": "<withheld: free text written about a live screen>",
+  "steps": [
+    {
+      "action": "navigate",
+      "intent": "Go to the main menu to start opening a new sub-account for a member",
+      "target": null,
+      "value": "/",
+      "output": null,
+      "read_value": null,
+      "options": [],
+      "frame": [],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/work"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<573 characters of screen text, not retained>"
+      }
+    },
+    {
+      "action": "activate",
+      "intent": "Go to member inquiry to locate the member before opening a sub-account",
+      "target": {
+        "description": "Go to member inquiry to locate the member before opening a sub-account",
+        "frame": [
+          "nav"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "link",
+            "name": "1. MEMBER INQUIRY",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "link"
+          },
+          {
+            "strategy": "structural",
+            "css": "body > table > tbody > tr:nth-of-type(2) > td > a"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "read_value": null,
+      "options": [],
+      "frame": [
+        "nav"
+      ],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/members/inquiry"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<1910 characters of screen text, not retained>"
+      }
+    },
+    {
+      "action": "fill",
+      "intent": "Enter member number to search for the member",
+      "target": {
+        "description": "Enter member number to search for the member",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "textbox",
+            "name": "MEMBER ID",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "textbox"
+          },
+          {
+            "strategy": "structural",
+            "css": "form > table > tbody > tr:nth-of-type(2) > td:nth-of-type(2) > input"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": "1002**",
+      "output": null,
+      "read_value": null,
+      "options": [],
+      "frame": [
+        "work"
+      ],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/members/inquiry"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<1964 characters of screen text, not retained>"
+      }
+    },
+    {
+      "action": "activate",
+      "intent": "Search for the member by ID",
+      "target": {
+        "description": "Search for the member by ID",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "button",
+            "name": "Search",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "button"
+          },
+          {
+            "strategy": "structural",
+            "css": "form > table > tbody > tr:nth-of-type(2) > td:nth-of-type(3) > input"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "read_value": null,
+      "options": [],
+      "frame": [
+        "work"
+      ],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/members/1002**"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<4686 characters of screen text, not retained>"
+      }
+    },
+    {
+      "action": "activate",
+      "intent": "Open the new sub-account form for the member",
+      "target": {
+        "description": "Open the new sub-account form for the member",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "link",
+            "name": "OPEN SUB-ACCOUNT",
+            "exact": false
+          },
+          {
+            "strategy": "structural",
+            "css": "td > table:nth-of-type(3) > tbody > tr > td > a"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "read_value": null,
+      "options": [],
+      "frame": [
+        "work"
+      ],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/members/1002**/subaccount/new"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<1775 characters of screen text, not retained>"
+      }
+    },
+    {
+      "action": "select",
+      "intent": "Select account type SAVI*** for the new sub-account",
+      "target": {
+        "description": "Select account type SAVI*** for the new sub-account",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "combobox",
+            "name": "ACCOUNT TYPE",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "combobox"
+          },
+          {
+            "strategy": "structural",
+            "css": "form > table > tbody > tr:nth-of-type(1) > td:nth-of-type(2) > select"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": "SAVI***",
+      "output": null,
+      "read_value": null,
+      "options": [
+        "SAVINGS",
+        "MONEY MARKET",
+        "HOLIDAY CLUB"
+      ],
+      "frame": [
+        "work"
+      ],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/members/1002**/subaccount/new"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<1745 characters of screen text, not retained>"
+      }
+    },
+    {
+      "action": "fill",
+      "intent": "Enter the opening deposit amount for the new sub-account",
+      "target": {
+        "description": "Enter the opening deposit amount for the new sub-account",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role",
+            "role": "textbox"
+          },
+          {
+            "strategy": "structural",
+            "css": "form > table > tbody > tr:nth-of-type(2) > td:nth-of-type(2) > input"
+          },
+          {
+            "strategy": "coordinates",
+            "x": 351,
+            "y": 135,
+            "viewport_width": 1200,
+            "viewport_height": 820
+          }
+        ],
+        "recorded_strategy": "role",
+        "nth": 0
+      },
+      "value": "250.**",
+      "output": null,
+      "read_value": null,
+      "options": [],
+      "frame": [
+        "work"
+      ],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/members/1002**/subaccount/new"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<1799 characters of screen text, not retained>"
+      }
+    },
+    {
+      "action": "activate",
+      "intent": "Continue to the next step of opening the sub-account",
+      "target": {
+        "description": "Continue to the next step of opening the sub-account",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "button",
+            "name": "Continue",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "button"
+          },
+          {
+            "strategy": "structural",
+            "css": "form > table > tbody > tr:nth-of-type(3) > td:nth-of-type(2) > input"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "read_value": null,
+      "options": [],
+      "frame": [
+        "work"
+      ],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/members/1002**/subaccount/new"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<1706 characters of screen text, not retained>"
+      }
+    },
+    {
+      "action": "activate",
+      "intent": "Confirm and open the new sub-account",
+      "target": {
+        "description": "Confirm and open the new sub-account",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "button",
+            "name": "Confirm and Open",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "button"
+          },
+          {
+            "strategy": "structural",
+            "css": "table > tbody > tr > td > form > input:nth-of-type(3)"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "read_value": null,
+      "options": [],
+      "frame": [
+        "work"
+      ],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/members/1002**/subaccount/new"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<3499 characters of screen text, not retained>"
+      }
+    },
+    {
+      "action": "activate",
+      "intent": "Authorise the irreversible action to finalize opening the sub-account",
+      "target": {
+        "description": "Authorise the irreversible action to finalize opening the sub-account",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "button",
+            "name": "Authorise",
+            "exact": false
+          },
+          {
+            "strategy": "structural",
+            "css": "td > table:nth-of-type(3) > tbody > tr > td:nth-of-type(2) > input"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "read_value": null,
+      "options": [],
+      "frame": [
+        "work"
+      ],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/members/1002**/subaccount/confirm"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<1595 characters of screen text, not retained>"
+      }
+    },
+    {
+      "action": "read",
+      "intent": "Read the newly created sub-account number from the confirmation screen",
+      "target": {
+        "description": "Read the newly created sub-account number from the confirmation screen",
+        "frame": [
+          "work"
+        ],
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "NEW ACCOUNT NO"
+          }
+        },
+        "strategies": [
+          {
+            "strategy": "role",
+            "role": "cell"
+          }
+        ],
+        "recorded_strategy": "role",
+        "nth": 1
+      },
+      "value": null,
+      "output": "sub_account_number",
+      "read_value": "0001**********",
+      "options": [],
+      "frame": [
+        "work"
+      ],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/members/1002**/subaccount/confirm"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<1595 characters of screen text, not retained>"
+      }
+    },
+    {
+      "action": "read",
+      "intent": "Read the confirmed opening deposit/balance from the confirmation screen",
+      "target": {
+        "description": "Read the confirmed opening deposit/balance from the confirmation screen",
+        "frame": [
+          "work"
+        ],
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "DEPOSIT . . ."
+          }
+        },
+        "strategies": [
+          {
+            "strategy": "role",
+            "role": "cell"
+          }
+        ],
+        "recorded_strategy": "role",
+        "nth": 1
+      },
+      "value": null,
+      "output": "opening_balance",
+      "read_value": "250.**",
+      "options": [],
+      "frame": [
+        "work"
+      ],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/members/1002**/subaccount/confirm"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<1595 characters of screen text, not retained>"
+      }
+    },
+    {
+      "action": "read",
+      "intent": "Read the confirmation reference (new sub-account number) shown on the confirmation screen",
+      "target": {
+        "description": "Read the confirmation reference (new sub-account number) shown on the confirmation screen",
+        "frame": [
+          "work"
+        ],
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "NEW ACCOUNT NO"
+          }
+        },
+        "strategies": [
+          {
+            "strategy": "role",
+            "role": "cell"
+          }
+        ],
+        "recorded_strategy": "role",
+        "nth": 1
+      },
+      "value": null,
+      "output": "confirmation_reference",
+      "read_value": "0001**********",
+      "options": [],
+      "frame": [
+        "work"
+      ],
+      "urls_after": [
+        "http://127.0.0.1:8081/",
+        "http://127.0.0.1:8081/banner",
+        "http://127.0.0.1:8081/nav",
+        "http://127.0.0.1:8081/members/1002**/subaccount/confirm"
+      ],
+      "frames_after": {
+        "": "<152 characters of screen text, not retained>",
+        "banner": "<203 characters of screen text, not retained>",
+        "nav": "<503 characters of screen text, not retained>",
+        "work": "<1595 characters of screen text, not retained>"
+      }
+    }
+  ],
+  "proof": {
+    "summary": "<withheld: free text written about a live screen>",
+    "proof_kind": "text_present",
+    "frame": "work",
+    "proof_text": "ACCOUNT OPENED SUCCESSFULLY",
+    "role": "cell",
+    "name": "ACCOUNT OPENED SUCCESSFULLY NEW ACCOUNT NO 0001********** TYPE . . . . . SAVI*** DEPOSIT . . . 250.** RETURN TO MEMBER PROFILE"
+  },
+  "proof_target": null,
+  "outputs": {
+    "sub_account_number": "0001**********",
+    "opening_balance": "250.**",
+    "confirmation_reference": "0001**********"
+  },
+  "turns": 13,
+  "duration_ms": 57054,
+  "evidence_dir": "evidence/disc_3baef8210c"
+}

@@ -1,0 +1,19 @@
+{
+  "capability_id": "member.lookup_profile_and_savings_balance",
+  "capability_version": "1.0.0",
+  "run_id": "run_d2d011f3ac",
+  "institution": "pinecrest-cu",
+  "started_at": "2026-09-11T18:07:21.675109Z",
+  "finished_at": "2026-09-11T18:07:27.145814Z",
+  "duration_ms": 5470,
+  "steps_total": 7,
+  "steps_completed": 3,
+  "degradations": [],
+  "recoveries": [],
+  "control_events": [],
+  "evidence_dir": "evidence/run_d2d011f3ac",
+  "status": "business_outcome",
+  "code": "MEMBER_NOT_FOUND",
+  "message": "No member exists with the given member number.",
+  "partial_outputs": {}
+}

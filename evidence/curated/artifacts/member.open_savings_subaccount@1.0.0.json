@@ -1,0 +1,733 @@
+{
+  "schema_version": "1.0",
+  "id": "member.open_savings_subaccount",
+  "version": "1.0.0",
+  "title": "Open New Savings Sub-Account",
+  "description": "Opens a new savings sub-account for an existing member and funds it with an opening deposit, driving the workflow through to the confirmation screen.",
+  "app_profile": "meridian-core@8.4",
+  "status": "draft",
+  "risk_tier": "irreversible_write",
+  "requires_authenticated_session": true,
+  "inputs": [
+    {
+      "name": "member_number",
+      "type": "string",
+      "required": true,
+      "description": "The member number for whom the sub-account is being opened.",
+      "sensitivity": "pii",
+      "pattern": "^[0-9]{6}$",
+      "values": null,
+      "example": "100234",
+      "unique_key": true
+    },
+    {
+      "name": "account_type",
+      "type": "enum",
+      "required": true,
+      "description": "The type of sub-account to open.",
+      "sensitivity": "internal",
+      "pattern": "^(SAVINGS|MONEY\\ MARKET|HOLIDAY\\ CLUB)$",
+      "values": [
+        "SAVINGS",
+        "MONEY MARKET",
+        "HOLIDAY CLUB"
+      ],
+      "example": "SAVINGS",
+      "unique_key": false
+    },
+    {
+      "name": "opening_deposit",
+      "type": "decimal",
+      "required": true,
+      "description": "The amount to deposit into the new sub-account at opening.",
+      "sensitivity": "internal",
+      "pattern": "^[0-9]+(\\.[0-9]{2})?$",
+      "values": null,
+      "example": "250.00",
+      "unique_key": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "sub_account_number",
+      "type": "string",
+      "description": "The newly created sub-account number.",
+      "sensitivity": "pii",
+      "values": null
+    },
+    {
+      "name": "confirmation_reference",
+      "type": "string",
+      "description": "The confirmation or transaction reference number shown on the confirmation screen.",
+      "sensitivity": "internal",
+      "values": null
+    },
+    {
+      "name": "opening_balance",
+      "type": "decimal",
+      "description": "The confirmed opening balance of the new sub-account after the deposit.",
+      "sensitivity": "pii",
+      "values": null
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "intent": "Go to the main menu to start opening a new sub-account for a member",
+      "action": "navigate",
+      "target": null,
+      "value": {
+        "kind": "literal",
+        "value": "/"
+      },
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "MAIN MENU",
+          "frame": [
+            "nav"
+          ]
+        },
+        "timeout_ms": 5000,
+        "description": "the screen showing 'MAIN MENU' is displayed"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s2",
+      "intent": "Go to member inquiry to locate the member before opening a sub-account",
+      "action": "activate",
+      "target": {
+        "description": "Go to member inquiry to locate the member before opening a sub-account",
+        "frame": [
+          "nav"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "link",
+            "name": "1. MEMBER INQUIRY",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "link"
+          },
+          {
+            "strategy": "structural",
+            "css": "body > table > tbody > tr:nth-of-type(2) > td > a"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "MEMBER INQUIRY",
+          "frame": [
+            "work"
+          ]
+        },
+        "timeout_ms": 5000,
+        "description": "the screen showing 'MEMBER INQUIRY' is displayed"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s3",
+      "intent": "Enter member number to search for the member",
+      "action": "fill",
+      "target": {
+        "description": "Enter member number to search for the member",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "textbox",
+            "name": "MEMBER ID",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "textbox"
+          },
+          {
+            "strategy": "structural",
+            "css": "form > table > tbody > tr:nth-of-type(2) > td:nth-of-type(2) > input"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": {
+        "kind": "param",
+        "param": "member_number"
+      },
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "value_equals",
+          "target": {
+            "description": "Enter member number to search for the member",
+            "frame": [
+              "work"
+            ],
+            "scope": null,
+            "strategies": [
+              {
+                "strategy": "role_name",
+                "role": "textbox",
+                "name": "MEMBER ID",
+                "exact": false
+              },
+              {
+                "strategy": "role",
+                "role": "textbox"
+              },
+              {
+                "strategy": "structural",
+                "css": "form > table > tbody > tr:nth-of-type(2) > td:nth-of-type(2) > input"
+              }
+            ],
+            "recorded_strategy": "role_name",
+            "nth": 0
+          },
+          "expected": {
+            "kind": "param",
+            "param": "member_number"
+          }
+        },
+        "timeout_ms": 5000,
+        "description": "the field holds the value that was entered"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s4",
+      "intent": "Search for the member by ID",
+      "action": "activate",
+      "target": {
+        "description": "Search for the member by ID",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "button",
+            "name": "Search",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "button"
+          },
+          {
+            "strategy": "structural",
+            "css": "form > table > tbody > tr:nth-of-type(2) > td:nth-of-type(3) > input"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "MEMBER PROFILE",
+          "frame": [
+            "work"
+          ]
+        },
+        "timeout_ms": 5000,
+        "description": "the screen showing 'MEMBER PROFILE' is displayed"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s5",
+      "intent": "Open the new sub-account form for the member",
+      "action": "activate",
+      "target": {
+        "description": "Open the new sub-account form for the member",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "link",
+            "name": "OPEN SUB-ACCOUNT",
+            "exact": false
+          },
+          {
+            "strategy": "structural",
+            "css": "td > table:nth-of-type(3) > tbody > tr > td > a"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "ACCOUNT TYPE . . -- SELECT --",
+          "frame": [
+            "work"
+          ]
+        },
+        "timeout_ms": 5000,
+        "description": "the screen showing 'ACCOUNT TYPE . . -- SELECT --' is displayed"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s6",
+      "intent": "Select account type {account_type} for the new sub-account",
+      "action": "select",
+      "target": {
+        "description": "Select account type {account_type} for the new sub-account",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "combobox",
+            "name": "ACCOUNT TYPE",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "combobox"
+          },
+          {
+            "strategy": "structural",
+            "css": "form > table > tbody > tr:nth-of-type(1) > td:nth-of-type(2) > select"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": {
+        "kind": "param",
+        "param": "account_type"
+      },
+      "output": null,
+      "checkpoint": null,
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s7",
+      "intent": "Enter the opening deposit amount for the new sub-account",
+      "action": "fill",
+      "target": {
+        "description": "Enter the opening deposit amount for the new sub-account",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role",
+            "role": "textbox"
+          },
+          {
+            "strategy": "structural",
+            "css": "form > table > tbody > tr:nth-of-type(2) > td:nth-of-type(2) > input"
+          },
+          {
+            "strategy": "coordinates",
+            "x": 351,
+            "y": 135,
+            "viewport_width": 1200,
+            "viewport_height": 820
+          }
+        ],
+        "recorded_strategy": "role",
+        "nth": 0
+      },
+      "value": {
+        "kind": "param",
+        "param": "opening_deposit"
+      },
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "value_equals",
+          "target": {
+            "description": "Enter the opening deposit amount for the new sub-account",
+            "frame": [
+              "work"
+            ],
+            "scope": null,
+            "strategies": [
+              {
+                "strategy": "role",
+                "role": "textbox"
+              },
+              {
+                "strategy": "structural",
+                "css": "form > table > tbody > tr:nth-of-type(2) > td:nth-of-type(2) > input"
+              },
+              {
+                "strategy": "coordinates",
+                "x": 351,
+                "y": 135,
+                "viewport_width": 1200,
+                "viewport_height": 820
+              }
+            ],
+            "recorded_strategy": "role",
+            "nth": 0
+          },
+          "expected": {
+            "kind": "param",
+            "param": "opening_deposit"
+          }
+        },
+        "timeout_ms": 5000,
+        "description": "the field holds the value that was entered"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s8",
+      "intent": "Continue to the next step of opening the sub-account",
+      "action": "activate",
+      "target": {
+        "description": "Continue to the next step of opening the sub-account",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "button",
+            "name": "Continue",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "button"
+          },
+          {
+            "strategy": "structural",
+            "css": "form > table > tbody > tr:nth-of-type(3) > td:nth-of-type(2) > input"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "REVIEW SUB-ACCOUNT",
+          "frame": [
+            "work"
+          ]
+        },
+        "timeout_ms": 5000,
+        "description": "the screen showing 'REVIEW SUB-ACCOUNT' is displayed"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s9",
+      "intent": "Confirm and open the new sub-account",
+      "action": "activate",
+      "target": {
+        "description": "Confirm and open the new sub-account",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "button",
+            "name": "Confirm and Open",
+            "exact": false
+          },
+          {
+            "strategy": "role",
+            "role": "button"
+          },
+          {
+            "strategy": "structural",
+            "css": "table > tbody > tr > td > form > input:nth-of-type(3)"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "AUTHORISE IRREVERSIBLE ACTION",
+          "frame": [
+            "work"
+          ]
+        },
+        "timeout_ms": 5000,
+        "description": "the screen showing 'AUTHORISE IRREVERSIBLE ACTION' is displayed"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s10",
+      "intent": "Authorise the irreversible action to finalize opening the sub-account",
+      "action": "activate",
+      "target": {
+        "description": "Authorise the irreversible action to finalize opening the sub-account",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "button",
+            "name": "Authorise",
+            "exact": false
+          },
+          {
+            "strategy": "structural",
+            "css": "td > table:nth-of-type(3) > tbody > tr > td:nth-of-type(2) > input"
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      },
+      "value": null,
+      "output": null,
+      "checkpoint": {
+        "condition": {
+          "kind": "text_present",
+          "text": "SUB-ACCOUNT OPENED",
+          "frame": [
+            "work"
+          ]
+        },
+        "timeout_ms": 5000,
+        "description": "the screen showing 'SUB-ACCOUNT OPENED' is displayed"
+      },
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "classify",
+      "retries": 0,
+      "irreversible": true
+    },
+    {
+      "id": "s11",
+      "intent": "Read the newly created sub-account number from the confirmation screen",
+      "action": "read",
+      "target": {
+        "description": "Read the newly created sub-account number from the confirmation screen",
+        "frame": [
+          "work"
+        ],
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "NEW ACCOUNT NO"
+          }
+        },
+        "strategies": [
+          {
+            "strategy": "role",
+            "role": "cell"
+          }
+        ],
+        "recorded_strategy": "role",
+        "nth": 1
+      },
+      "value": null,
+      "output": "sub_account_number",
+      "checkpoint": null,
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s12",
+      "intent": "Read the confirmed opening deposit/balance from the confirmation screen",
+      "action": "read",
+      "target": {
+        "description": "Read the confirmed opening deposit/balance from the confirmation screen",
+        "frame": [
+          "work"
+        ],
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "DEPOSIT . . ."
+          }
+        },
+        "strategies": [
+          {
+            "strategy": "role",
+            "role": "cell"
+          }
+        ],
+        "recorded_strategy": "role",
+        "nth": 1
+      },
+      "value": null,
+      "output": "opening_balance",
+      "checkpoint": null,
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    },
+    {
+      "id": "s13",
+      "intent": "Read the confirmation reference (new sub-account number) shown on the confirmation screen",
+      "action": "read",
+      "target": {
+        "description": "Read the confirmation reference (new sub-account number) shown on the confirmation screen",
+        "frame": [
+          "work"
+        ],
+        "scope": {
+          "kind": "container_with_text",
+          "container_role": "row",
+          "text": {
+            "kind": "literal",
+            "value": "NEW ACCOUNT NO"
+          }
+        },
+        "strategies": [
+          {
+            "strategy": "role",
+            "role": "cell"
+          }
+        ],
+        "recorded_strategy": "role",
+        "nth": 1
+      },
+      "value": null,
+      "output": "confirmation_reference",
+      "checkpoint": null,
+      "condition": null,
+      "timeout_ms": 10000,
+      "on_failure": "fail",
+      "retries": 0,
+      "irreversible": false
+    }
+  ],
+  "success_condition": {
+    "condition": {
+      "kind": "text_present",
+      "text": "ACCOUNT OPENED SUCCESSFULLY",
+      "frame": [
+        "work"
+      ]
+    },
+    "timeout_ms": 5000,
+    "description": "the screen showing 'ACCOUNT OPENED SUCCESSFULLY' is displayed"
+  },
+  "outcomes": [
+    {
+      "code": "MEMBER_NOT_FOUND",
+      "description": "No member exists with the given member number.",
+      "detector": {
+        "kind": "text_present",
+        "text": "NO MEMBER MATCHING",
+        "frame": [
+          "work"
+        ]
+      },
+      "terminal": true
+    },
+    {
+      "code": "INVALID_DEPOSIT_AMOUNT",
+      "description": "The opening deposit does not meet the minimum required amount or is otherwise invalid for the chosen account type.",
+      "detector": {
+        "kind": "text_present",
+        "text": "ENTRY REJECTED — OPENING DEPOSIT BELOW PRODUCT MINIMUM",
+        "frame": [
+          "work"
+        ]
+      },
+      "terminal": true
+    }
+  ],
+  "provenance": {
+    "goal": "Open a new sub-account of type {account_type} for member {member_number}, with an opening deposit of {opening_deposit}, and reach the confirmation screen.",
+    "discovery_run_id": "disc_3baef8210c",
+    "model": "claude-sonnet-5",
+    "recorded_at": "2026-09-11T18:05:16.528659Z",
+    "recorded_against_institution": "pinecrest-cu",
+    "surface_kind": "legacy_web"
+  },
+  "stability": {
+    "replays": 0,
+    "successes": 0,
+    "last_verified_at": null,
+    "degradations_seen": 0
+  }
+}

@@ -6,7 +6,7 @@ import itertools
 import re
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -14,18 +14,27 @@ from urllib.parse import urljoin
 
 from pydantic import BaseModel, Field
 
+from computer_use.escalation.handoff import (
+    HandoffBroker,
+    InterventionRequest,
+    new_request_id,
+)
 from computer_use.evidence.sink import EventSink, RunRecorder
+from computer_use.guardrails.policy import Allowlist
 from computer_use.schema.capability import (
     Action,
     BusinessOutcome,
     CapabilityArtifact,
     InputParam,
     OnFailure,
+    RiskTier,
     Sensitivity,
     Step,
 )
 from computer_use.schema.event import EventType, EvidenceRef, Level, RunKind
+from computer_use.schema.profile import AppProfile, KnownScreen
 from computer_use.schema.result import (
+    Actor,
     BusinessOutcomeResult,
     ControlEvent,
     Degradation,
@@ -38,6 +47,23 @@ from computer_use.schema.result import (
     SuccessResult,
 )
 from computer_use.surfaces.base import Surface, SurfaceError, TargetNotFound, resolve_value
+
+# How many times one run may clear a recognised screen before concluding that
+# clearing it is not working.
+# Least to most restrictive, so that one value seen under two tags takes the
+# stricter of the two.
+STRICTNESS = {
+    Sensitivity.PUBLIC: 0,
+    Sensitivity.INTERNAL: 1,
+    Sensitivity.PII: 2,
+    Sensitivity.SECRET: 3,
+}
+
+MAX_RECOVERIES = 3
+
+# How many times a read-only capability may be replayed from the top after the
+# session was restored.
+MAX_RESTARTS = 1
 
 
 def mask(value: str, sensitivity: Sensitivity) -> str:
@@ -60,11 +86,23 @@ class ReplayEngine:
         base_url: str,
         events: EventSink | None = None,
         evidence_root: Path | str = "evidence",
+        policy: Allowlist | None = None,
+        profile: AppProfile | None = None,
+        credentials: tuple[str, str] | None = None,
+        handoff: HandoffBroker | None = None,
+        confirm_irreversible: bool = True,
+        stop_before_irreversible: bool = False,
     ):
         self._surface = surface
         self._base_url = base_url.rstrip("/") + "/"
         self._events = events
         self._evidence_root = Path(evidence_root)
+        self._policy = policy
+        self._profile = profile
+        self._credentials = credentials
+        self._handoff = handoff
+        self._confirm_irreversible = confirm_irreversible
+        self._stop_before_irreversible = stop_before_irreversible
 
     # -- entry point -------------------------------------------------------
 
@@ -75,13 +113,14 @@ class ReplayEngine:
         *,
         institution: str,
         run_id: str | None = None,
+        unattended: bool = True,
     ) -> ReplayResult:
         run_id = run_id or f"run_{uuid.uuid4().hex[:10]}"
         run_dir = self._evidence_root / run_id
         sink = self._events or EventSink(run_dir)
         rec = RunRecorder(sink, run_id=run_id, run_kind=RunKind.REPLAY, capability_id=artifact.id)
 
-        started = datetime.now(timezone.utc)
+        started = datetime.now(UTC)
         clock = time.monotonic()
         state = _RunState(
             artifact=artifact, run_id=run_id, institution=institution,
@@ -97,6 +136,29 @@ class ReplayEngine:
             redacted_fields=redacted,
         )
 
+        if self._policy is not None:
+            decision = self._policy.check_artifact(
+                artifact, unattended=unattended,
+                will_commit=not self._stop_before_irreversible,
+            )
+            if not decision.allowed:
+                rec.emit(EventType.POLICY_BLOCKED, "Replay refused by policy",
+                         level=Level.ERROR, detail={"reason": decision.reason})
+                return self._failure(
+                    state, clock,
+                    FailureDetail(
+                        classification=FailureClass.POLICY_BLOCKED,
+                        expected=f"a capability permitted by allowlist {self._policy.name!r}",
+                        observed=decision.reason,
+                    ),
+                )
+            rec.emit(EventType.POLICY_ALLOWED, f"Permitted by allowlist {self._policy.name!r}",
+                     detail={"reason": decision.reason, "unattended": unattended})
+
+        session = await self._establish_session(state, rec, artifact)
+        if session is not None:
+            return self._failure(state, clock, session)
+
         problems = self._validate_params(artifact, params)
         if problems:
             rec.emit(EventType.RUN_FINISHED, "Replay rejected: invalid inputs",
@@ -110,13 +172,37 @@ class ReplayEngine:
                 ),
             )
 
+        for _ in range(MAX_RESTARTS + 1):
+            verdict = await self._walk_steps(state, rec, artifact, params)
+            if verdict is None:
+                return self._finish(
+                    state, clock, rec, await self._verify_success(state, rec, params)
+                )
+            if not verdict.restart:
+                return self._finish(state, clock, rec, verdict)
+            rec.emit(EventType.RECOVERY_ATTEMPTED,
+                     "Signed in again; replaying this read-only capability from its first step",
+                     detail={"steps_discarded": state.steps_completed})
+            state.steps_completed = 0
+            state.outputs = {}
+
+        return self._finish(state, clock, rec, _Verdict(failure=FailureDetail(
+            classification=FailureClass.SESSION_LOST,
+            expected="a session that survives the length of this capability",
+            observed=f"the session was lost and restored {MAX_RESTARTS} times without finishing",
+        )))
+
+    async def _walk_steps(
+        self, state: _RunState, rec: RunRecorder,
+        artifact: CapabilityArtifact, params: dict[str, Any],
+    ) -> _Verdict | None:
+        """Run every step in order. Returns None when they all passed."""
         for index, step in enumerate(artifact.steps):
             verdict = await self._run_step(state, rec, step, index, params)
             if verdict is not None:
-                return self._finish(state, clock, rec, verdict)
+                return verdict
             state.steps_completed = index + 1
-
-        return self._finish(state, clock, rec, await self._verify_success(state, rec, params))
+        return None
 
     async def _verify_success(
         self, state: _RunState, rec: RunRecorder, params: dict[str, Any]
@@ -151,6 +237,37 @@ class ReplayEngine:
         self, state: _RunState, rec: RunRecorder, step: Step, index: int, params: dict[str, Any]
     ) -> _Verdict | None:
         """Run one step to conclusion. Returns a verdict only if the run must stop."""
+        blocked = self._check_allowlist(rec, step, index, params)
+        if blocked is not None:
+            return _Verdict(failure=blocked)
+
+        if step.irreversible and self._stop_before_irreversible:
+            rec.emit(EventType.RUN_FINISHED,
+                     f"Stopping before the first step that commits: {step.intent}",
+                     step_id=step.id, step_index=index)
+            return _Verdict(failure=self._step_failure(
+                step, index, FailureClass.POLICY_BLOCKED,
+                expected="a run that stops before committing anything",
+                observed="reached the first irreversible step and stopped, as asked",
+            ))
+
+        if step.irreversible and self._confirm_irreversible:
+            verdict = await self._escalate(
+                state, rec, step, index,
+                FailureDetail(
+                    classification=FailureClass.ESCALATION_UNANSWERED,
+                    step_id=step.id, step_index=index, step_intent=step.intent,
+                    expected="a person to authorise an irreversible step",
+                    observed="the step was reached and has not been performed",
+                ),
+                why="this step commits something that cannot be undone",
+                ask=("Check the entry on screen. Reply resume to let the automation "
+                     "commit it, or abort to stop."),
+                proceed_on_resume=True,
+            )
+            if verdict is not None:
+                return verdict
+
         for attempt in itertools.count(1):
             rec.emit(EventType.ACTION_ATTEMPTED, step.intent, step_id=step.id, step_index=index,
                      rationale=f"recorded step: {step.action.value}",
@@ -159,20 +276,354 @@ class ReplayEngine:
 
             failure = await self._attempt(state, rec, step, index, params)
             if failure is None:
-                failure = await self._verify_checkpoint(rec, step, index, params)
+                failure = await self._verify_checkpoint(state, rec, step, index, params)
 
             if failure is None:
                 rec.emit(EventType.ACTION_SUCCEEDED, f"{step.action.value} completed",
                          step_id=step.id, step_index=index,
                          duration_ms=int((time.monotonic() - began) * 1000))
+                landed = await self._check_landing(rec, step, index)
+                if landed is not None:
+                    return _Verdict(failure=landed)
                 return None
 
-            verdict = await self._apply_policy(state, rec, step, index, params, failure, attempt)
+            known = await self._handle_known_screen(state, rec, step, index, failure)
+            if known is not None:
+                if known.retry:
+                    continue
+                return known                    # includes a request to restart
+
+            verdict = await self._apply_failure_policy(state, rec, step, index, params, failure, attempt)
             if verdict is None:          # the step was optional and was skipped
                 return None
             if verdict.retry:
                 continue
             return verdict
+
+    def _check_allowlist(
+        self, rec: RunRecorder, step: Step, index: int, params: dict[str, Any]
+    ) -> FailureDetail | None:
+        """Refuse a step the allowlist does not permit. Returns None when permitted."""
+        if self._policy is None:
+            return None
+        url = None
+        if step.action is Action.NAVIGATE:
+            url = urljoin(self._base_url, resolve_value(step.value, params))
+        decision = self._policy.check_step(step, url)
+        if decision.allowed:
+            return None
+        rec.emit(EventType.POLICY_BLOCKED, f"Step refused by policy: {step.intent}",
+                 level=Level.ERROR, step_id=step.id, step_index=index,
+                 detail={"reason": decision.reason})
+        return self._step_failure(
+            step, index, FailureClass.POLICY_BLOCKED,
+            expected=f"a step permitted by allowlist {self._policy.name!r}",
+            observed=decision.reason,
+        )
+
+    async def _escalate(
+        self, state: _RunState, rec: RunRecorder, step: Step, index: int,
+        failure: FailureDetail, *, why: str, ask: str, proceed_on_resume: bool,
+    ) -> _Verdict | None:
+        """Hand the live session to a person, wait, and take it back.
+
+        The browser is not closed and no new session is made. The automation
+        simply stops driving the window it already has, so whatever the operator
+        does happens in the same session, with the same cookies, on the same
+        screen the automation was looking at.
+        """
+        evidence = await self._capture(state, f"{step.id}-escalation")
+        detail = failure.model_copy(update={
+            "screenshot_path": evidence.screenshot_path,
+            "snapshot_path": evidence.snapshot_path,
+        })
+
+        if self._handoff is None:
+            rec.emit(EventType.ESCALATION_RAISED,
+                     f"Needs a human, and no operator channel is configured: {step.intent}",
+                     level=Level.ERROR, step_id=step.id, step_index=index)
+            return _Verdict(failure=detail.model_copy(update={
+                "classification": FailureClass.ESCALATION_UNANSWERED,
+                "observed": f"{failure.observed} (no operator channel was configured)",
+            }), escalated=True)
+
+        request = InterventionRequest(
+            request_id=new_request_id(),
+            raised_at=datetime.now(UTC),
+            run_id=state.run_id, run_dir=str(state.run_dir),
+            capability_id=state.artifact.id,
+            capability_title=state.artifact.title,
+            goal=state.artifact.provenance.goal,
+            risk_tier=state.artifact.risk_tier.value,
+            step_id=step.id, step_index=index, step_intent=step.intent,
+            why=why, expected=detail.expected, observed=detail.observed,
+            asked_of_operator=ask,
+            screenshot_path=detail.screenshot_path,
+            snapshot_path=detail.snapshot_path,
+        )
+        self._handoff.publish(request)
+        rec.emit(EventType.ESCALATION_RAISED, f"Operator asked to take over: {why}",
+                 level=Level.WARN, step_id=step.id, step_index=index,
+                 detail={"request_id": request.request_id,
+                         "request_file": str(self._handoff.request_path)},
+                 evidence=evidence)
+
+        before = await self._safe_signature()
+        state.control_events.append(ControlEvent(
+            at=datetime.now(UTC), from_actor=Actor.AGENT,
+            to_actor=Actor.OPERATOR, reason=why,
+        ))
+        rec.emit(EventType.CONTROL_TRANSFERRED, "The session is now the operator's",
+                 actor=Actor.SYSTEM, step_id=step.id, step_index=index,
+                 detail={"request_id": request.request_id})
+
+        answer = await self._handoff.wait(request.request_id)
+
+        if answer is None:
+            rec.emit(EventType.CONTROL_TRANSFERRED,
+                     "Nobody answered; the session returns to the automation",
+                     level=Level.ERROR, actor=Actor.SYSTEM)
+            state.control_events.append(ControlEvent(
+                at=datetime.now(UTC), from_actor=Actor.OPERATOR,
+                to_actor=Actor.AGENT, reason="the request went unanswered",
+            ))
+            return _Verdict(failure=detail.model_copy(update={
+                "classification": FailureClass.ESCALATION_UNANSWERED,
+                "observed": f"{detail.observed} (no operator answered in "
+                            f"{self._handoff.wait_seconds}s)",
+            }), escalated=True)
+
+        after = await self._safe_signature()
+        changed = before != after
+        rec.emit(EventType.OPERATOR_ACTION,
+                 f"{answer.operator} chose to {answer.decision}"
+                 + (f": {answer.note}" if answer.note else ""),
+                 actor=Actor.OPERATOR, step_id=step.id, step_index=index,
+                 detail={"request_id": request.request_id,
+                         "changed_the_screen": changed,
+                         "urls": [
+                             mask(u, Sensitivity.PII) if any(
+                                 str(v) and str(v) in u for v in state.outputs.values()
+                             ) else u
+                             for u in await self._safe_urls()
+                         ]})
+        state.control_events.append(ControlEvent(
+            at=datetime.now(UTC), from_actor=Actor.OPERATOR,
+            to_actor=Actor.AGENT, reason=f"operator chose to {answer.decision}",
+            operator_ref=answer.operator,
+            operator_actions_recorded=1 if changed else 0,
+        ))
+        rec.emit(EventType.CONTROL_TRANSFERRED, "The automation has the session again",
+                 actor=Actor.SYSTEM, step_id=step.id, step_index=index)
+
+        if answer.decision != "resume":
+            return _Verdict(failure=detail.model_copy(update={
+                "classification": FailureClass.ESCALATION_ABANDONED,
+                "observed": f"{answer.operator} stopped the run"
+                            + (f": {answer.note}" if answer.note else ""),
+            }), escalated=True)
+
+        return None if proceed_on_resume else _Verdict(retry=True)
+
+    async def _safe_signature(self) -> str:
+        try:
+            return await self._surface.signature()
+        except Exception:
+            return ""
+
+    async def _safe_urls(self) -> list[str]:
+        try:
+            return await self._surface.current_urls()
+        except Exception:
+            return []
+
+    async def _establish_session(
+        self, state: _RunState, rec: RunRecorder, artifact: CapabilityArtifact
+    ) -> FailureDetail | None:
+        """Sign in, if this capability says it needs a session and we hold credentials.
+
+        Inside the engine rather than in the caller, because the engine promises
+        to always return a result. A sign-on screen that never appears because
+        the product is down is a failure to report, not an exception to raise.
+        """
+        if not artifact.requires_authenticated_session or self._credentials is None:
+            return None
+        try:
+            if await self._sign_on():
+                rec.emit(EventType.RECOVERY_ATTEMPTED, "Session established")
+                return None
+            observed = "the sign-on screen did not lead to a signed-in session"
+        except Exception as exc:
+            observed = f"{type(exc).__name__}: {exc}"
+
+        screen = await self._match_known_screen()
+        classification = FailureClass.SESSION_LOST
+        if screen is not None and screen.classification is not None:
+            classification = screen.classification
+            observed = f"{screen.name} ({observed})"
+
+        rec.emit(EventType.RUN_FINISHED, "Replay could not establish a session",
+                 level=Level.ERROR, detail={"classification": classification.value,
+                                            "observed": observed})
+        evidence = await self._capture(state, "sign-on")
+        return FailureDetail(
+            classification=classification,
+            expected="a signed-in session before the first step",
+            observed=observed,
+            screenshot_path=evidence.screenshot_path,
+            snapshot_path=evidence.snapshot_path,
+        )
+
+    async def _handle_known_screen(
+        self, state: _RunState, rec: RunRecorder, step: Step, index: int,
+        failure: FailureDetail,
+    ) -> _Verdict | None:
+        """Ask the app profile whether this screen means something it knows about.
+
+        A step does not fail because the application is broken. It fails because
+        something is on the screen. The profile is what turns "the checkpoint did
+        not hold" into "the session expired" or "this operator lacks the right".
+        """
+        if self._profile is None:
+            return None
+        screen = await self._match_known_screen()
+        if screen is None:
+            return None
+
+        if screen.recoverable and state.recovery_attempts < MAX_RECOVERIES:
+            state.recovery_attempts += 1
+            recovered = await self._recover(state, rec, step, index, screen)
+            if recovered and screen.recovery is RecoveryKind.REAUTHENTICATED:
+                return self._after_reauthentication(state, rec, step, index, failure)
+            if recovered:
+                return _Verdict(retry=True)
+
+        if screen.classification is None:
+            # Recognised, recoverable, and still here after several attempts.
+            # Say that, rather than reporting a bare checkpoint failure.
+            evidence = await self._capture(state, f"{step.id}-unrecovered")
+            return _Verdict(failure=failure.model_copy(update={
+                "observed": f"{screen.name} kept reappearing after "
+                            f"{state.recovery_attempts} attempts to clear it",
+                "screenshot_path": evidence.screenshot_path,
+                "snapshot_path": evidence.snapshot_path,
+            }))
+        rec.emit(EventType.OUTCOME_DETECTED, f"Recognised screen: {screen.name}",
+                 level=Level.WARN, step_id=step.id, step_index=index,
+                 detail={"profile": self._profile.id, "screen": screen.name,
+                         "classification": screen.classification.value})
+        evidence = await self._capture(state, f"{step.id}-{screen.classification.value}")
+        return _Verdict(failure=failure.model_copy(update={
+            "classification": screen.classification,
+            "observed": f"{screen.name} ({failure.observed})",
+            "screenshot_path": evidence.screenshot_path,
+            "snapshot_path": evidence.snapshot_path,
+        }))
+
+    def _after_reauthentication(
+        self, state: _RunState, rec: RunRecorder, step: Step, index: int,
+        failure: FailureDetail,
+    ) -> _Verdict:
+        """Signing in again restores the session, not the place in the flow.
+
+        Re-running the earlier steps is only safe when none of them changed
+        anything. For a capability that writes, replaying a submit could open a
+        second account, so the honest answer is to stop and tell the caller.
+        """
+        if state.artifact.risk_tier is RiskTier.READ_ONLY:
+            return _Verdict(restart=True)
+
+        rec.emit(EventType.RUN_FINISHED,
+                 "Session restored, but this capability writes, so it will not be replayed",
+                 level=Level.ERROR, step_id=step.id, step_index=index,
+                 detail={"risk_tier": state.artifact.risk_tier.value})
+        return _Verdict(failure=failure.model_copy(update={
+            "classification": FailureClass.SESSION_LOST,
+            "observed": (
+                f"the session expired partway through a {state.artifact.risk_tier.value} "
+                f"capability; it was restored, but replaying the earlier steps could "
+                f"repeat work that was already committed, so the run was stopped"
+            ),
+        }))
+
+    async def _match_known_screen(self) -> KnownScreen | None:
+        for screen in self._profile.known_screens:
+            try:
+                held, _ = await self._surface.check(screen.detector, {})
+            except Exception:
+                continue
+            if held:
+                return screen
+        return None
+
+    async def _recover(
+        self, state: _RunState, rec: RunRecorder, step: Step, index: int, screen: KnownScreen
+    ) -> bool:
+        """Clear a screen the profile says is recoverable. True if it worked."""
+        try:
+            if screen.dismiss is not None:
+                handle, _ = await self._surface.resolve(screen.dismiss, {})
+                await self._surface.activate(handle)
+            elif screen.recovery is RecoveryKind.REAUTHENTICATED:
+                if not await self._sign_on():
+                    return False
+            else:
+                return False
+        except Exception as exc:
+            rec.emit(EventType.RECOVERY_ATTEMPTED, f"Could not clear {screen.name}: {exc}",
+                     level=Level.WARN, step_id=step.id, step_index=index)
+            return False
+
+        rec.emit(EventType.RECOVERY_ATTEMPTED, f"Handled {screen.name}, retrying the step",
+                 step_id=step.id, step_index=index,
+                 detail={"recovery": screen.recovery.value})
+        state.recoveries.append(Recovery(
+            step_id=step.id, kind=screen.recovery,
+            detected=screen.name, action="cleared it and retried the step",
+            attempts=state.recovery_attempts,
+        ))
+        return True
+
+    async def _sign_on(self) -> bool:
+        """Re-establish a session using the profile. Credentials never touch the log."""
+        sign_on = self._profile.sign_on if self._profile else None
+        if sign_on is None or self._credentials is None:
+            return False
+        user, password = self._credentials
+        await self._surface.navigate(urljoin(self._base_url, sign_on.path))
+        for target, value in (
+            (sign_on.username_field, user), (sign_on.password_field, password)
+        ):
+            handle, _ = await self._surface.resolve(target, {})
+            await self._surface.fill(handle, value)
+        handle, _ = await self._surface.resolve(sign_on.submit, {})
+        await self._surface.activate(handle)
+        held, _ = await self._surface.wait_for(sign_on.success, {}, 10_000)
+        return held
+
+    async def _check_landing(
+        self, rec: RunRecorder, step: Step, index: int
+    ) -> FailureDetail | None:
+        """Refuse a page the step navigated to indirectly, such as by following a link."""
+        if self._policy is None:
+            return None
+        try:
+            urls = await self._surface.current_urls()
+        except Exception:
+            return None
+        for url in urls:
+            decision = self._policy.check_url(url)
+            if decision.allowed:
+                continue
+            rec.emit(EventType.POLICY_BLOCKED, f"Landed outside the allowlist: {url}",
+                     level=Level.ERROR, step_id=step.id, step_index=index,
+                     detail={"reason": decision.reason, "url": url})
+            return self._step_failure(
+                step, index, FailureClass.POLICY_BLOCKED,
+                expected=f"a location permitted by allowlist {self._policy.name!r}",
+                observed=decision.reason,
+            )
+        return None
 
     async def _attempt(
         self, state: _RunState, rec: RunRecorder, step: Step, index: int, params: dict[str, Any]
@@ -195,8 +646,28 @@ class ReplayEngine:
             )
         return None
 
+    def _scrub(self, state: _RunState, text: str, params: dict[str, Any]) -> str:
+        """Mask anything this run supplied or read out of a message bound for the log.
+
+        A checkpoint reports what it compared, and what it compared is the
+        member number the caller passed. The message is as much a place for a
+        value to escape as the field it was read from.
+        """
+        declared = {i.name: i.sensitivity for i in state.artifact.inputs}
+        declared.update({o.name: o.sensitivity for o in state.artifact.outputs})
+        values: dict[str, Sensitivity] = {}
+        for source in (params, state.outputs):
+            for name, raw in source.items():
+                text_value = str(raw)
+                if len(text_value) >= 4:
+                    values[text_value] = declared.get(name, Sensitivity.PII)
+        for raw in sorted(values, key=len, reverse=True):
+            text = text.replace(raw, mask(raw, values[raw]))
+        return text
+
     async def _verify_checkpoint(
-        self, rec: RunRecorder, step: Step, index: int, params: dict[str, Any]
+        self, state: _RunState, rec: RunRecorder, step: Step, index: int,
+        params: dict[str, Any],
     ) -> FailureDetail | None:
         """Assert the step's post-condition. Returns a failure, or None if it held."""
         if step.checkpoint is None:
@@ -208,14 +679,16 @@ class ReplayEngine:
             step.checkpoint.condition, params, step.checkpoint.timeout_ms
         )
         if held:
-            rec.emit(EventType.CHECKPOINT_PASSED, f"Checkpoint held: {observed}",
+            rec.emit(EventType.CHECKPOINT_PASSED,
+                     f"Checkpoint held: {self._scrub(state, observed, params)}",
                      step_id=step.id, step_index=index)
             return None
 
         rec.emit(EventType.CHECKPOINT_FAILED,
                  f"Checkpoint did not hold within {step.checkpoint.timeout_ms}ms",
                  level=Level.WARN, step_id=step.id, step_index=index,
-                 detail={"expected": expected, "observed": observed})
+                 detail={"expected": self._scrub(state, expected, params),
+                         "observed": self._scrub(state, observed, params)})
         return self._step_failure(step, index, FailureClass.CHECKPOINT_FAILED,
                                   expected=expected, observed=observed)
 
@@ -226,7 +699,7 @@ class ReplayEngine:
         return FailureDetail(classification=classification, step_id=step.id,
                              step_index=index, step_intent=step.intent, **fields)
 
-    async def _apply_policy(
+    async def _apply_failure_policy(
         self, state: _RunState, rec: RunRecorder, step: Step, index: int,
         params: dict[str, Any], failure: FailureDetail, attempt: int,
     ) -> _Verdict | None:
@@ -263,16 +736,14 @@ class ReplayEngine:
                 return _Verdict(outcome=outcome)
 
         if policy is OnFailure.ESCALATE:
-            rec.emit(EventType.ESCALATION_RAISED,
-                     f"Step needs a human: {step.intent}", level=Level.WARN,
-                     step_id=step.id, step_index=index, detail={"observed": failure.observed})
-            evidence = await self._capture(state, f"{step.id}-escalation")
-            failure = failure.model_copy(update={
-                "classification": FailureClass.ESCALATION_UNANSWERED,
-                "screenshot_path": evidence.screenshot_path,
-                "snapshot_path": evidence.snapshot_path,
-            })
-            return _Verdict(failure=failure, escalated=True)
+            verdict = await self._escalate(
+                state, rec, step, index, failure,
+                why=f"the automation could not complete this step: {failure.observed}",
+                ask=("Take the browser, put the screen into the state this step was "
+                     "trying to reach, then reply resume. Reply abort to stop."),
+                proceed_on_resume=False,
+            )
+            return verdict if verdict is not None else _Verdict(failure=failure, escalated=True)
 
         evidence = await self._capture(state, f"{step.id}-failure")
         return _Verdict(failure=failure.model_copy(update={
@@ -335,9 +806,8 @@ class ReplayEngine:
                 raise SurfaceError(f"step {step.id} reads a value but names no output field")
             raw = await surface.read(handle)
             state.outputs[step.output] = self._coerce(state.artifact, step.output, raw)
-            field = next((o for o in state.artifact.outputs if o.name == step.output), None)
             shown = mask(str(state.outputs[step.output]),
-                         field.sensitivity if field else Sensitivity.INTERNAL)
+                         self._sensitivity_of(state, step.output))
             rec.emit(EventType.OUTPUT_EXTRACTED, f"Extracted {step.output}",
                      step_id=step.id, step_index=index,
                      detail={step.output: shown},
@@ -346,6 +816,22 @@ class ReplayEngine:
             raise SurfaceError(f"replay cannot perform {action.value}")
 
     # -- helpers -----------------------------------------------------------
+
+    def _sensitivity_of(self, state: _RunState, output: str) -> Sensitivity:
+        """The strictest tag on any output currently holding this same value.
+
+        A sub-account number arrived once as a `pii` output and again as an
+        `internal` one. Masking each field by its own tag left the second copy
+        in the clear beside the masked first, which protects nothing.
+        """
+        value = str(state.outputs.get(output, ""))
+        declared = {o.name: o.sensitivity for o in state.artifact.outputs}
+        sharing = [
+            declared.get(name, Sensitivity.INTERNAL)
+            for name, held in state.outputs.items()
+            if str(held) == value
+        ]
+        return max(sharing or [Sensitivity.INTERNAL], key=lambda s: STRICTNESS[s])
 
     def _redact(
         self, artifact: CapabilityArtifact, params: dict[str, Any]
@@ -475,7 +961,7 @@ class ReplayEngine:
             "run_id": state.run_id,
             "institution": state.institution,
             "started_at": state.started_at,
-            "finished_at": datetime.now(timezone.utc),
+            "finished_at": datetime.now(UTC),
             "duration_ms": int((time.monotonic() - clock) * 1000),
             "steps_total": len(state.artifact.steps),
             "steps_completed": state.steps_completed,
@@ -495,6 +981,7 @@ class _Verdict(BaseModel):
     """Why a step ended. Retry means run it again; the others stop the run."""
 
     retry: bool = False
+    restart: bool = False
     outcome: BusinessOutcome | None = None
     failure: FailureDetail | None = None
     escalated: bool = False
@@ -514,3 +1001,4 @@ class _RunState(BaseModel):
     degradations: list[Degradation] = Field(default_factory=list)
     recoveries: list[Recovery] = Field(default_factory=list)
     control_events: list[ControlEvent] = Field(default_factory=list)
+    recovery_attempts: int = 0

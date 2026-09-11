@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import itertools
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -64,7 +64,7 @@ class RunRecorder:
             run_id=self._run_id,
             run_kind=self._run_kind,
             seq=next(self._seq),
-            at=datetime.now(timezone.utc),
+            at=datetime.now(UTC),
             type=type,
             level=level,
             actor=actor,

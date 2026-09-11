@@ -19,10 +19,6 @@ venv/
 *.sqlite3
 .playwright/
 
-# Node
-node_modules/
-console/dist/
-
 # OS
 .DS_Store
 
@@ -30,3 +26,4 @@ CLAUDE.md
 
 # Ad-hoc run output. Curated evidence is committed deliberately.
 evidence/run_*/
+evidence/disc_*/

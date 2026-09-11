@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, Literal, Union
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -107,7 +107,7 @@ class ParamRef(BaseModel):
     param: str
 
 
-ValueSource = Annotated[Union[LiteralValue, ParamRef], Field(discriminator="kind")]
+ValueSource = Annotated[LiteralValue | ParamRef, Field(discriminator="kind")]
 
 
 # --------------------------------------------------------------------------
@@ -181,16 +181,7 @@ class CoordinateLocator(BaseModel):
 
 
 Locator = Annotated[
-    Union[
-        RoleNameLocator,
-        RoleLocator,
-        LabelLocator,
-        PlaceholderLocator,
-        TextLocator,
-        StructuralLocator,
-        GridLocator,
-        CoordinateLocator,
-    ],
+    RoleNameLocator | RoleLocator | LabelLocator | PlaceholderLocator | TextLocator | StructuralLocator | GridLocator | CoordinateLocator,
     Field(discriminator="strategy"),
 ]
 
@@ -220,7 +211,7 @@ class ContainerWithTextScope(BaseModel):
 
 
 Scope = Annotated[
-    Union[RegionScope, ContainerWithTextScope],
+    RegionScope | ContainerWithTextScope,
     Field(discriminator="kind"),
 ]
 
@@ -275,7 +266,7 @@ class UrlMatches(BaseModel):
 
 
 Condition = Annotated[
-    Union[TextPresent, TextAbsent, ElementPresent, ValueEquals, UrlMatches],
+    TextPresent | TextAbsent | ElementPresent | ValueEquals | UrlMatches,
     Field(discriminator="kind"),
 ]
 
@@ -440,7 +431,7 @@ class CapabilityArtifact(BaseModel):
     stability: Stability = Field(default_factory=Stability)
 
     @model_validator(mode="after")
-    def _irreversible_needs_unique_key(self) -> "CapabilityArtifact":
+    def _irreversible_needs_unique_key(self) -> CapabilityArtifact:
         if self.risk_tier is RiskTier.IRREVERSIBLE_WRITE and not any(
             i.unique_key for i in self.inputs
         ):

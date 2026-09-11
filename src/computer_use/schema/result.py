@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
-
 
 # --------------------------------------------------------------------------
 # Failure taxonomy
@@ -162,6 +161,6 @@ class FailureResult(ReplayResultBase):
 
 
 ReplayResult = Annotated[
-    Union[SuccessResult, BusinessOutcomeResult, FailureResult],
+    SuccessResult | BusinessOutcomeResult | FailureResult,
     Field(discriminator="status"),
 ]

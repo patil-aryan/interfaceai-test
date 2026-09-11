@@ -1,0 +1,132 @@
+{
+  "id": "meridian-core@8.4",
+  "vendor": "Meridian Core Banking",
+  "surface_kind": "legacy_web",
+  "sign_on": {
+    "path": "/login",
+    "username_field": {
+      "description": "USER ID field",
+      "frame": [],
+      "scope": null,
+      "strategies": [
+        {
+          "strategy": "role_name",
+          "role": "textbox",
+          "name": "USER ID",
+          "exact": false
+        }
+      ],
+      "recorded_strategy": "role_name",
+      "nth": 0
+    },
+    "password_field": {
+      "description": "PASSWORD field",
+      "frame": [],
+      "scope": null,
+      "strategies": [
+        {
+          "strategy": "role_name",
+          "role": "textbox",
+          "name": "PASSWORD",
+          "exact": false
+        }
+      ],
+      "recorded_strategy": "role_name",
+      "nth": 0
+    },
+    "submit": {
+      "description": "Sign On button",
+      "frame": [],
+      "scope": null,
+      "strategies": [
+        {
+          "strategy": "role_name",
+          "role": "button",
+          "name": "Sign On",
+          "exact": false
+        }
+      ],
+      "recorded_strategy": "role_name",
+      "nth": 0
+    },
+    "success": {
+      "kind": "text_present",
+      "text": "MAIN MENU",
+      "frame": [
+        "nav"
+      ]
+    }
+  },
+  "known_screens": [
+    {
+      "name": "scheduled maintenance notice",
+      "detector": {
+        "kind": "text_present",
+        "text": "SYSTEM NOTICE",
+        "frame": [
+          "work"
+        ]
+      },
+      "recovery": "dismissed_interstitial",
+      "dismiss": {
+        "description": "Continue button on the maintenance notice",
+        "frame": [
+          "work"
+        ],
+        "scope": null,
+        "strategies": [
+          {
+            "strategy": "role_name",
+            "role": "button",
+            "name": "Continue",
+            "exact": false
+          }
+        ],
+        "recorded_strategy": "role_name",
+        "nth": 0
+      }
+    },
+    {
+      "name": "operator lacks the required privilege",
+      "detector": {
+        "kind": "text_present",
+        "text": "NOT AUTHORISED",
+        "frame": [
+          "work"
+        ]
+      },
+      "classification": "permission_denied"
+    },
+    {
+      "name": "the product's own error screen",
+      "detector": {
+        "kind": "text_present",
+        "text": "SYSTEM UNAVAILABLE",
+        "frame": []
+      },
+      "classification": "app_error"
+    },
+    {
+      "name": "the session has expired and sign-on is being asked for again",
+      "detector": {
+        "kind": "text_present",
+        "text": "SIGN ON",
+        "frame": []
+      },
+      "classification": "session_lost",
+      "recovery": "reauthenticated"
+    },
+    {
+      "name": "the session expired and the work area is asking for sign-on again",
+      "detector": {
+        "kind": "text_present",
+        "text": "SIGN ON",
+        "frame": [
+          "work"
+        ]
+      },
+      "classification": "session_lost",
+      "recovery": "reauthenticated"
+    }
+  ]
+}
