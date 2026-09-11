@@ -1,0 +1,27 @@
+# Secrets and local config
+.env
+.env.local
+
+docs/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Runtime state
+*.db
+*.sqlite3
+.playwright/
+
+# Node
+node_modules/
+console/dist/
+
+# OS
+.DS_Store
