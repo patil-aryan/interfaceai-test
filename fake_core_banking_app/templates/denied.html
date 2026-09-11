@@ -1,0 +1,7 @@
+{% set title = "AUTHORISATION" %}{% extends "_base.html" %}
+{% block screen %}
+<table cellpadding="10"><tr><td>
+ <div class="msg">NOT AUTHORISED &#8212; OPERATOR LACKS ACCOUNT OPENING PRIVILEGE</div>
+ <br><a href="/members/{{ member.member_id }}"><font size="1">RETURN TO MEMBER PROFILE</font></a>
+</td></tr></table>
+{% endblock %}

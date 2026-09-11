@@ -1,0 +1,27 @@
+{% set title = "MEMBER INQUIRY" %}{% extends "_base.html" %}
+{% block screen %}
+<table cellpadding="8"><tr><td>
+ <form method="post">
+  <table cellpadding="4">
+   <tr><td colspan="3"><font size="1" color="#404040"><b>SEARCH BY MEMBER NUMBER</b></font></td></tr>
+   <tr>
+    <td><font size="1"><b>{{ inst.member_id_label }} . . . .</b></font></td>
+    <td><input type="text" name="{{ field_name('member_id') }}" size="10" maxlength="6"
+               title="{{ inst.member_id_label }}" value="{{ entered or '' }}"></td>
+    <td rowspan="4" valign="middle">&nbsp;&nbsp;<input type="submit" value="{{ inst.search_button_text }}"></td>
+   </tr>
+   <tr><td colspan="2"><hr size="1" noshade></td></tr>
+   <tr><td colspan="2"><font size="1" color="#404040"><b>OR SEARCH BY NAME</b></font></td></tr>
+   <tr>
+    <td><font size="1"><b>SURNAME . . . . .</b></font></td>
+    <td><input type="text" name="{{ field_name('surname') }}" size="18" maxlength="20"
+               value="{{ surname or '' }}"></td>
+   </tr>
+  </table>
+ </form>
+ {% if error %}<div class="msg">{{ error }}</div>{% endif %}
+ {% if not_found %}<div class="msg">NO MEMBER MATCHING {{ not_found }}</div>{% endif %}
+ <br><font size="1" color="#404040">ENTER A 6 DIGIT {{ inst.member_id_label }}, OR A FULL OR PARTIAL SURNAME.</font>
+</td></tr></table>
+{% endblock %}
+{% block fkeys %}F3=Exit&nbsp;&nbsp;F12=Cancel&nbsp;&nbsp;ENTER={{ inst.search_button_text|upper }}{% endblock %}
