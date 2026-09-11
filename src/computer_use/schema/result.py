@@ -1,23 +1,4 @@
-"""What a replay returns to its caller.
-
-A production AI agent invokes a capability and gets one of exactly three
-shapes back:
-
-    success           the flow completed and the declared outputs are attached
-    business_outcome  a legitimate answer that is not success ("no such member")
-    failed            something went wrong; here is the step, the expectation,
-                      and what was actually observed
-
-Keeping these three apart is the point of the file. A single result object with
-a boolean `ok` invites callers to write `if ok: ... else: raise`, which turns a
-legitimate business answer into a crash. Three shapes make that impossible to
-write by accident.
-
-Two things are recorded on *every* result regardless of status, because they
-are how the system reports on itself: locator degradations (drift), and
-recoveries (conditions we detected and handled). Control transfers are recorded
-too, so a handoff to a human is part of the result rather than a side channel.
-"""
+"""What a replay returns to its caller: success, a business outcome, or a failure."""
 
 from __future__ import annotations
 
@@ -34,80 +15,57 @@ from pydantic import BaseModel, Field
 
 
 class FailureClass(str, Enum):
-    """Why a replay stopped, when it stopped badly.
+    """Why a replay stopped badly. Declared business outcomes never appear here."""
 
-    These are hard failures only. Anything the capability *declared* as a
-    business outcome never reaches this enum -- it returns as
-    `BusinessOutcomeResult` instead. The distinction is deliberate: a
-    permission denial the author anticipated is an answer; an unanticipated one
-    is a bug in the capability, and should look like one.
-    """
+    TARGET_NOT_FOUND = "target_not_found"
+    CHECKPOINT_FAILED = "checkpoint_failed"
+    SUCCESS_CONDITION_FAILED = "success_condition_failed"
 
-    # Targeting and verification
-    TARGET_NOT_FOUND = "target_not_found"  # no locator rung resolved the control
-    CHECKPOINT_FAILED = "checkpoint_failed"  # step ran, post-condition did not hold
-    SUCCESS_CONDITION_FAILED = "success_condition_failed"  # every step ran, end state wrong
+    SESSION_LOST = "session_lost"
+    SURFACE_UNAVAILABLE = "surface_unavailable"
+    TIMEOUT = "timeout"
 
-    # Session and environment
-    SESSION_LOST = "session_lost"  # expired, and re-authentication did not recover it
-    SURFACE_UNAVAILABLE = "surface_unavailable"  # could not reach the application at all
-    TIMEOUT = "timeout"  # a wait or load exceeded its budget
-
-    # The application said no, and the capability did not anticipate it
     PERMISSION_DENIED = "permission_denied"
-    APP_ERROR = "app_error"  # the application's own error screen
+    APP_ERROR = "app_error"
 
-    # Refused before or during execution
-    POLICY_BLOCKED = "policy_blocked"  # allowlist, risk tier, or approval state
-    INPUT_INVALID = "input_invalid"  # caller's arguments failed the declared contract
+    POLICY_BLOCKED = "policy_blocked"
+    INPUT_INVALID = "input_invalid"
 
-    # Human-in-the-loop
-    ESCALATION_UNANSWERED = "escalation_unanswered"  # nobody took the intervention in time
-    ESCALATION_ABANDONED = "escalation_abandoned"  # operator declined to continue
+    ESCALATION_UNANSWERED = "escalation_unanswered"
+    ESCALATION_ABANDONED = "escalation_abandoned"
 
-    INTERNAL_ERROR = "internal_error"  # a defect in this engine, not in the target
+    INTERNAL_ERROR = "internal_error"
 
 
 class FailureDetail(BaseModel):
-    """Everything needed to debug a failure without re-running it.
-
-    `expected` and `observed` are separate fields rather than one prose message
-    because the pair is what makes a failure actionable, and because a reviewer
-    scanning many failures needs them in fixed positions.
-    """
+    """Enough to debug a failure without re-running it."""
 
     classification: FailureClass
 
-    step_id: str | None = None  # None if we failed before any step ran
+    step_id: str | None = None
     step_index: int | None = None
-    step_intent: str | None = None  # the artifact's plain-English sentence
+    step_intent: str | None = None
 
-    expected: str  # "heading 'MEMBER PROFILE' present within 5000ms"
-    observed: str  # "no matching element; page heading was 'SYSTEM ERROR'"
+    expected: str
+    observed: str
 
-    # Which rungs of the locator ladder were tried, in order, and what happened
-    # to each. Present only for TARGET_NOT_FOUND.
     locator_attempts: list[str] = Field(default_factory=list)
 
     screenshot_path: str | None = None
-    snapshot_path: str | None = None  # accessibility tree / character grid dump
+    snapshot_path: str | None = None
 
 
 # --------------------------------------------------------------------------
-# Things that happened along the way, recorded on every result
+# Recorded on every result, whatever the status
 # --------------------------------------------------------------------------
 
 
 class Degradation(BaseModel):
-    """A locator resolved, but on a lower rung than when it was recorded.
-
-    The flow still worked. The surface moved. This is the early warning that a
-    capability is drifting for this institution, logged before it breaks.
-    """
+    """A locator resolved, but via a later fallback than when it was recorded."""
 
     step_id: str
-    recorded_rung: str
-    actual_rung: str
+    recorded_strategy: str
+    actual_strategy: str
     element_description: str
 
 
@@ -119,16 +77,12 @@ class RecoveryKind(str, Enum):
 
 
 class Recovery(BaseModel):
-    """A recoverable condition that was detected and handled.
-
-    Reported even on success, because a capability that quietly needs three
-    retries every run is a capability about to fail.
-    """
+    """A recoverable condition that was detected and handled."""
 
     step_id: str | None
     kind: RecoveryKind
-    detected: str  # what we saw
-    action: str  # what we did about it
+    detected: str
+    action: str
     attempts: int = 1
     resolved: bool = True
 
@@ -140,17 +94,13 @@ class Actor(str, Enum):
 
 
 class ControlEvent(BaseModel):
-    """A transfer of control over the live session.
-
-    Recorded on the result, not in a side channel, so a caller can see that a
-    human touched this run without going and reading the logs.
-    """
+    """A transfer of control over the live session."""
 
     at: datetime
     from_actor: Actor
     to_actor: Actor
     reason: str
-    operator_ref: str | None = None  # an opaque operator id, never a name
+    operator_ref: str | None = None
     operator_actions_recorded: int = 0
 
 
@@ -160,7 +110,7 @@ class ControlEvent(BaseModel):
 
 
 class ReplayResultBase(BaseModel):
-    """Fields present on every result, whatever the status."""
+    """Fields present on every result."""
 
     capability_id: str
     capability_version: str
@@ -178,7 +128,7 @@ class ReplayResultBase(BaseModel):
     recoveries: list[Recovery] = Field(default_factory=list)
     control_events: list[ControlEvent] = Field(default_factory=list)
 
-    evidence_dir: str  # where the event log, screenshots and snapshots landed
+    evidence_dir: str
 
 
 class SuccessResult(ReplayResultBase):
@@ -186,27 +136,18 @@ class SuccessResult(ReplayResultBase):
 
     status: Literal["success"] = "success"
 
-    # Keys are the capability's declared output names. Values are validated
-    # against the declared types by the executor before this is constructed,
-    # so the shape is `dict` here only because it is defined per capability.
-    #
-    # These values are returned to the caller in full. The redacted copy that
-    # goes to the event log is produced separately, by the guardrails module,
-    # using the sensitivity tag on each declared output.
+    # Keys are the capability's declared output names; the executor validates
+    # values against the declared types. Unmasked -- redaction for the event
+    # log happens in the guardrails module.
     outputs: dict[str, Any]
 
 
 class BusinessOutcomeResult(ReplayResultBase):
-    """A legitimate answer that is not success.
-
-    Not an error. "No such member" is what the caller asked to find out. The
-    code comes from the capability's declared `outcomes`, so a calling agent
-    can branch on a stable identifier rather than parsing a message.
-    """
+    """A legitimate answer that is not success, e.g. no such member."""
 
     status: Literal["business_outcome"] = "business_outcome"
 
-    code: str  # e.g. MEMBER_NOT_FOUND -- declared in the artifact
+    code: str
     message: str
     partial_outputs: dict[str, Any] = Field(default_factory=dict)
 
@@ -217,7 +158,7 @@ class FailureResult(ReplayResultBase):
     status: Literal["failed"] = "failed"
 
     failure: FailureDetail
-    escalated: bool = False  # was a human offered this before we gave up
+    escalated: bool = False
 
 
 ReplayResult = Annotated[

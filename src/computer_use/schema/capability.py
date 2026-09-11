@@ -116,13 +116,13 @@ ValueSource = Annotated[Union[LiteralValue, ParamRef], Field(discriminator="kind
 
 
 class RoleNameLocator(BaseModel):
-    """Accessible role plus accessible name. The preferred rung.
+    """Accessible role plus accessible name. The first strategy tried.
 
     Survives markup churn, works on legacy tables, and has a direct analogue in
     the OS accessibility APIs used for desktop surfaces.
     """
 
-    rung: Literal["role_name"] = "role_name"
+    strategy: Literal["role_name"] = "role_name"
     role: str
     name: str
     exact: bool = False
@@ -131,33 +131,33 @@ class RoleNameLocator(BaseModel):
 class LabelLocator(BaseModel):
     """The control associated with this visible label text."""
 
-    rung: Literal["label"] = "label"
+    strategy: Literal["label"] = "label"
     text: str
 
 
 class PlaceholderLocator(BaseModel):
-    rung: Literal["placeholder"] = "placeholder"
+    strategy: Literal["placeholder"] = "placeholder"
     text: str
 
 
 class TextLocator(BaseModel):
     """Matched on its own visible text. Common for links in legacy apps."""
 
-    rung: Literal["text"] = "text"
+    strategy: Literal["text"] = "text"
     text: str
 
 
 class StructuralLocator(BaseModel):
     """A DOM path, scoped to a named region. Brittle by nature, kept as a fallback."""
 
-    rung: Literal["structural"] = "structural"
+    strategy: Literal["structural"] = "structural"
     css: str
 
 
 class GridLocator(BaseModel):
     """Row/column addressing for character-grid surfaces (terminal emulators)."""
 
-    rung: Literal["grid"] = "grid"
+    strategy: Literal["grid"] = "grid"
     row: int
     column: int
     length: int | None = None
@@ -166,7 +166,7 @@ class GridLocator(BaseModel):
 class CoordinateLocator(BaseModel):
     """Viewport coordinates. Last resort, always flagged."""
 
-    rung: Literal["coordinates"] = "coordinates"
+    strategy: Literal["coordinates"] = "coordinates"
     x: int
     y: int
     viewport_width: int
@@ -183,23 +183,23 @@ Locator = Annotated[
         GridLocator,
         CoordinateLocator,
     ],
-    Field(discriminator="rung"),
+    Field(discriminator="strategy"),
 ]
 
 
 class ElementTarget(BaseModel):
     """How to find one control, with fallbacks, ordered best-first.
 
-    Replay walks `strategies` in order and records which rung actually resolved.
-    A replay that succeeds on a lower rung than `recorded_rung` is the drift
-    signal: the flow still works, but the surface has moved under us.
+    Replay tries `strategies` in order and records which one resolved. Falling
+    back to a later strategy than `recorded_strategy` is the drift signal: the
+    flow still works, but the surface has moved under us.
     """
 
     description: str  # human-readable, for review and for failure messages
     frame: list[str] = Field(default_factory=list)  # frame path for framesets
     scope: RoleNameLocator | None = None  # containing landmark, if any
     strategies: list[Locator]
-    recorded_rung: str
+    recorded_strategy: str
     nth: int = 0  # disambiguator when several controls match
 
 
@@ -349,7 +349,7 @@ class Stability(BaseModel):
     replays: int = 0
     successes: int = 0
     last_verified_at: datetime | None = None
-    degradations_seen: int = 0  # times a locator fell to a lower rung
+    degradations_seen: int = 0  # times a locator needed a fallback strategy
 
 
 # --------------------------------------------------------------------------
