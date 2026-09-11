@@ -1,0 +1,29 @@
+<html><head><title>MERIDIAN CORE {{ inst.product_version }} - SIGN ON</title>
+<style>{% include "_legacy.css" %}</style></head>
+<body bgcolor="#d4d0c8">
+<table width="100%" height="100%"><tr><td align="center" valign="middle">
+ <table class="screenbox" cellpadding="6" width="430"><tr><td>
+  <table width="100%" cellpadding="0" cellspacing="0" bgcolor="{{ inst.accent }}">
+   <tr><td><font color="#ffffff" size="1">&nbsp;<b>MERIDIAN CORE {{ inst.product_version }} &#8212; SIGN ON</b></font></td></tr>
+  </table>
+  <br>
+  <table cellpadding="3"><tr><td colspan="2">
+    <font size="1"><b>{{ inst.name }}</b></font></td></tr>
+   {% if expired %}<tr><td colspan="2"><div class="msg">SESSION HAS TIMED OUT &#8212; SIGN ON AGAIN</div></td></tr>{% endif %}
+   {% if error %}<tr><td colspan="2"><div class="msg">{{ error }}</div></td></tr>{% endif %}
+   <tr><td colspan="2">
+    <form method="post">
+     <table cellpadding="3">
+      <tr><td><font size="1"><b>USER ID . . . . .</b></font></td>
+          <td><input type="text" name="{{ field_name('user_id') }}" size="14" title="USER ID"></td></tr>
+      <tr><td><font size="1"><b>PASSWORD . . . .</b></font></td>
+          <td><input type="password" name="{{ field_name('password') }}" size="14" title="PASSWORD"></td></tr>
+      <tr><td></td><td><input type="submit" value="Sign On"></td></tr>
+     </table>
+    </form>
+   </td></tr>
+  </table>
+  <div class="fkeys">F3=Exit&nbsp;&nbsp;BUILD {{ build_id }}</div>
+ </td></tr></table>
+</td></tr></table>
+</body></html>

@@ -1,0 +1,78 @@
+{% set title = "MEMBER PROFILE" %}{% extends "_base.html" %}
+{% block screen %}
+<table cellpadding="8" width="100%"><tr><td>
+ <table cellpadding="3">
+  <tr><td><font size="1"><b>{{ inst.member_id_label }} . .</b></font></td>
+      <td><font size="1" face="Courier New">{{ member.member_id }}</font></td>
+      <td width="30"></td>
+      <td><font size="1"><b>STATUS . .</b></font></td>
+      <td><font size="1" face="Courier New">{{ member.status }}</font></td></tr>
+  <tr><td><font size="1"><b>NAME . . . . .</b></font></td>
+      <td colspan="4"><font size="1" face="Courier New">{{ member.name }}</font></td></tr>
+  <tr><td><font size="1"><b>BRANCH . . . .</b></font></td>
+      <td><font size="1" face="Courier New">{{ member.branch }}</font></td>
+      <td></td>
+      <td><font size="1"><b>JOINED . .</b></font></td>
+      <td><font size="1" face="Courier New">{{ member.joined }}</font></td></tr>
+ </table>
+ <br>
+
+ <table cellpadding="0" cellspacing="0"><tr>
+  {% for key, label in [('accounts','ACCOUNTS'), ('holds','HOLDS &amp; ALERTS'), ('address','ADDRESS')] %}
+  <td bgcolor="{{ inst.accent if tab == key else '#b8b4ac' }}" style="border:1px outset #d4d0c8;padding:3px 12px">
+   {% if tab == key %}<font color="#ffffff" size="1"><b>{{ label|safe }}</b></font>
+   {% else %}<a href="/members/{{ member.member_id }}?tab={{ key }}"><font size="1">{{ label|safe }}</font></a>{% endif %}
+  </td><td width="2"></td>
+  {% endfor %}
+ </tr></table>
+
+ <table cellpadding="6" cellspacing="0" bgcolor="#e8e4dc" width="100%" style="border:1px inset #d4d0c8"><tr><td>
+ {% if tab == 'accounts' %}
+  <table cellpadding="3" cellspacing="1" bgcolor="#808080">
+   <tr bgcolor="{{ inst.accent }}">
+    <td><font color="#ffffff" size="1"><b>TYPE</b></font></td>
+    <td><font color="#ffffff" size="1"><b>ACCOUNT NO</b></font></td>
+    <td align="right"><font color="#ffffff" size="1"><b>BALANCE</b></font></td>
+    <td><font color="#ffffff" size="1"><b>STATUS</b></font></td>
+   </tr>
+   {% for a in member.accounts %}
+   <tr bgcolor="#f4f0e8">
+    <td><font size="1" face="Courier New">{% if a.kind == 'SAVINGS' %}{{ inst.savings_row_label }}{% else %}{{ a.kind }}{% endif %}</font></td>
+    <td><font size="1" face="Courier New">{{ a.number }}</font></td>
+    <td align="right"><font size="1" face="Courier New">{{ '%.2f'|format(a.balance) }}</font></td>
+    <td><font size="1" face="Courier New">{{ a.status }}</font></td>
+   </tr>
+   {% endfor %}
+  </table>
+  <br><a href="/members/{{ member.member_id }}/subaccount/new"><font size="1">OPEN SUB-ACCOUNT</font></a>
+ {% elif tab == 'holds' %}
+  {% if member.holds %}
+  <table cellpadding="3" cellspacing="1" bgcolor="#808080">
+   <tr bgcolor="{{ inst.accent }}">
+    <td><font color="#ffffff" size="1"><b>CODE</b></font></td>
+    <td><font color="#ffffff" size="1"><b>DESCRIPTION</b></font></td>
+    <td><font color="#ffffff" size="1"><b>PLACED</b></font></td>
+    <td align="right"><font color="#ffffff" size="1"><b>AMOUNT</b></font></td>
+   </tr>
+   {% for h in member.holds %}
+   <tr bgcolor="#f4f0e8">
+    <td><font size="1" face="Courier New">{{ h.code }}</font></td>
+    <td><font size="1" face="Courier New">{{ h.description }}</font></td>
+    <td><font size="1" face="Courier New">{{ h.placed }}</font></td>
+    <td align="right"><font size="1" face="Courier New">{{ '%.2f'|format(h.amount) }}</font></td>
+   </tr>
+   {% endfor %}
+  </table>
+  {% else %}<font size="1" face="Courier New">NO HOLDS OR ALERTS ON FILE.</font>{% endif %}
+ {% else %}
+  <table cellpadding="3">
+   <tr><td><font size="1"><b>STREET . . . .</b></font></td>
+       <td><font size="1" face="Courier New">{{ member.address }}</font></td></tr>
+   <tr><td><font size="1"><b>CITY/ST/ZIP .</b></font></td>
+       <td><font size="1" face="Courier New">{{ member.city_state_zip }}</font></td></tr>
+  </table>
+ {% endif %}
+ </td></tr></table>
+</td></tr></table>
+{% endblock %}
+{% block fkeys %}F3=Exit&nbsp;&nbsp;F9=Open Sub-Account&nbsp;&nbsp;F12=Cancel{% endblock %}

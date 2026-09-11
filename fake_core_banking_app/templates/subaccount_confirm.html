@@ -1,0 +1,15 @@
+{% set title = "SUB-ACCOUNT OPENED" %}{% extends "_base.html" %}
+{% block screen %}
+<table cellpadding="8"><tr><td>
+ <font size="1" face="Courier New"><b>ACCOUNT OPENED SUCCESSFULLY</b></font><br><br>
+ <table cellpadding="3">
+  <tr><td><font size="1"><b>NEW ACCOUNT NO</b></font></td>
+      <td><font size="1" face="Courier New">{{ number }}</font></td></tr>
+  <tr><td><font size="1"><b>TYPE . . . . .</b></font></td>
+      <td><font size="1" face="Courier New">{{ kind }}</font></td></tr>
+  <tr><td><font size="1"><b>DEPOSIT . . .</b></font></td>
+      <td><font size="1" face="Courier New">{{ '%.2f'|format(deposit) }}</font></td></tr>
+ </table>
+ <br><a href="/members/{{ member.member_id }}"><font size="1">RETURN TO MEMBER PROFILE</font></a>
+</td></tr></table>
+{% endblock %}
