@@ -128,6 +128,13 @@ class RoleNameLocator(BaseModel):
     exact: bool = False
 
 
+class RoleLocator(BaseModel):
+    """Role alone, with no name. Only valid inside a scope that narrows to one."""
+
+    strategy: Literal["role"] = "role"
+    role: str
+
+
 class LabelLocator(BaseModel):
     """The control associated with this visible label text."""
 
@@ -176,6 +183,7 @@ class CoordinateLocator(BaseModel):
 Locator = Annotated[
     Union[
         RoleNameLocator,
+        RoleLocator,
         LabelLocator,
         PlaceholderLocator,
         TextLocator,
@@ -200,6 +208,10 @@ class ContainerWithTextScope(BaseModel):
 
     The text may be bound to an input parameter, which is how a step targets
     "the SELECT link in the row for the member number I was given".
+
+    Nested table layouts make ancestor containers match too, because their text
+    includes their children's. Resolution therefore takes the *innermost* match:
+    the matching container that contains no other matching container.
     """
 
     kind: Literal["container_with_text"] = "container_with_text"
