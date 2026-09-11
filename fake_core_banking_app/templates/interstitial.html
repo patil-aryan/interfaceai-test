@@ -1,0 +1,7 @@
+{% set title = "SYSTEM NOTICE" %}{% extends "_base.html" %}
+{% block screen %}
+<table cellpadding="10"><tr><td>
+ <div class="msg">SCHEDULED MAINTENANCE BEGINS AT 23:00. SAVE WORK IN PROGRESS.</div>
+ <br><form method="get" action="{{ target }}"><input type="submit" value="Continue"></form>
+</td></tr></table>
+{% endblock %}

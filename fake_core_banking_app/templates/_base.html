@@ -1,0 +1,11 @@
+<html><head><title>{{ title }}</title><style>{% include "_legacy.css" %}</style></head>
+<body>
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td>
+  <table width="100%" cellpadding="0" cellspacing="0" bgcolor="{{ inst.accent }}">
+    <tr><td><font color="#ffffff" face="Verdana" size="1">&nbsp;<b>{{ title }}</b></font></td>
+        <td align="right"><font color="#ffffff" face="Verdana" size="1">{{ inst.short_name }}&nbsp;&nbsp;{{ today }}&nbsp;</font></td></tr>
+  </table>
+  <div class="screenbox">{% block screen %}{% endblock %}</div>
+  <div class="fkeys">{% block fkeys %}F3=Exit&nbsp;&nbsp;F12=Cancel{% endblock %}</div>
+</td></tr></table>
+</body></html>

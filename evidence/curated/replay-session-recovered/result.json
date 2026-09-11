@@ -1,0 +1,30 @@
+{
+  "capability_id": "member.lookup_profile_and_savings_balance",
+  "capability_version": "1.0.0",
+  "run_id": "run_702aa7416d",
+  "institution": "pinecrest-cu",
+  "started_at": "2026-09-11T18:07:33.840332Z",
+  "finished_at": "2026-09-11T18:07:39.788401Z",
+  "duration_ms": 5947,
+  "steps_total": 7,
+  "steps_completed": 7,
+  "degradations": [],
+  "recoveries": [
+    {
+      "step_id": "s1",
+      "kind": "reauthenticated",
+      "detected": "the session has expired and sign-on is being asked for again",
+      "action": "cleared it and retried the step",
+      "attempts": 1,
+      "resolved": true
+    }
+  ],
+  "control_events": [],
+  "evidence_dir": "evidence/run_702aa7416d",
+  "status": "success",
+  "outputs": {
+    "full_name": "ELEANOR R VANCE",
+    "membership_status": "ACTIVE",
+    "savings_balance": "4182.55"
+  }
+}

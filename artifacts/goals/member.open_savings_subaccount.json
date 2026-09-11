@@ -1,0 +1,117 @@
+{
+  "id": "member.open_savings_subaccount",
+  "version": "1.0.0",
+  "title": "Open New Savings Sub-Account",
+  "description": "Opens a new savings sub-account for an existing member and funds it with an opening deposit, driving the workflow through to the confirmation screen.",
+  "goal": "Open a new sub-account of type {account_type} for member {member_number}, with an opening deposit of {opening_deposit}, and reach the confirmation screen.",
+  "app_profile": "meridian-core@8.4",
+  "institution": "pinecrest-cu",
+  "surface_kind": "legacy_web",
+  "risk_tier": "irreversible_write",
+  "requires_authenticated_session": true,
+  "inputs": [
+    {
+      "name": "member_number",
+      "type": "string",
+      "required": true,
+      "description": "The member number for whom the sub-account is being opened.",
+      "sensitivity": "pii",
+      "pattern": "^[0-9]{6}$",
+      "values": null,
+      "example": "100234",
+      "unique_key": true
+    },
+    {
+      "name": "account_type",
+      "type": "enum",
+      "required": true,
+      "description": "The type of sub-account to open.",
+      "sensitivity": "internal",
+      "pattern": "^(SAVINGS|MONEY\\ MARKET|HOLIDAY\\ CLUB)$",
+      "values": [
+        "SAVINGS",
+        "MONEY MARKET",
+        "HOLIDAY CLUB"
+      ],
+      "example": "SAVINGS",
+      "unique_key": false
+    },
+    {
+      "name": "opening_deposit",
+      "type": "decimal",
+      "required": true,
+      "description": "The amount to deposit into the new sub-account at opening.",
+      "sensitivity": "internal",
+      "pattern": "^[0-9]+(\\.[0-9]{2})?$",
+      "values": null,
+      "example": "250.00",
+      "unique_key": false
+    }
+  ],
+  "outputs": [
+    {
+      "name": "sub_account_number",
+      "type": "string",
+      "description": "The newly created sub-account number.",
+      "sensitivity": "pii",
+      "values": null
+    },
+    {
+      "name": "confirmation_reference",
+      "type": "string",
+      "description": "The confirmation or transaction reference number shown on the confirmation screen.",
+      "sensitivity": "internal",
+      "values": null
+    },
+    {
+      "name": "opening_balance",
+      "type": "decimal",
+      "description": "The confirmed opening balance of the new sub-account after the deposit.",
+      "sensitivity": "pii",
+      "values": null
+    }
+  ],
+  "outcomes": [
+    {
+      "code": "MEMBER_NOT_FOUND",
+      "description": "No member exists with the given member number.",
+      "signal_text": "Member not found",
+      "trigger": {
+        "member_number": "999999"
+      }
+    },
+    {
+      "code": "MEMBER_INELIGIBLE",
+      "description": "The member is not eligible to open a new sub-account (e.g. account restricted, suspended, or closed).",
+      "signal_text": "Member is not eligible for a new sub-account",
+      "trigger": {}
+    },
+    {
+      "code": "INVALID_DEPOSIT_AMOUNT",
+      "description": "The opening deposit does not meet the minimum required amount or is otherwise invalid for the chosen account type.",
+      "signal_text": "Opening deposit does not meet minimum requirement",
+      "trigger": {
+        "opening_deposit": "0.00"
+      }
+    },
+    {
+      "code": "ACCOUNT_TYPE_UNAVAILABLE",
+      "description": "The selected account type is not available for this member or product set.",
+      "signal_text": "Selected account type is not available",
+      "trigger": {}
+    },
+    {
+      "code": "INSUFFICIENT_FUNDING_SOURCE",
+      "description": "The funding source for the opening deposit does not have sufficient funds.",
+      "signal_text": "Insufficient funds to complete opening deposit",
+      "trigger": {}
+    },
+    {
+      "code": "DUPLICATE_ACCOUNT_REQUEST",
+      "description": "A sub-account of this type was already recently opened or is pending for this member.",
+      "signal_text": "A similar sub-account request is already pending or exists",
+      "trigger": {}
+    }
+  ],
+  "max_steps": 30
+}

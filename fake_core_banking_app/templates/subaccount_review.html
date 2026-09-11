@@ -1,0 +1,41 @@
+{% set title = "REVIEW SUB-ACCOUNT" %}{% extends "_base.html" %}
+{% block screen %}
+<table cellpadding="8"><tr><td>
+ <font size="1"><b>REVIEW THE DETAILS BELOW. THIS ACTION CANNOT BE REVERSED.</b></font><br><br>
+ <table cellpadding="3" cellspacing="1" bgcolor="#808080">
+  <tr bgcolor="#e8e4dc"><td><font size="1"><b>MEMBER</b></font></td>
+      <td><font size="1" face="Courier New">{{ member.member_id }} {{ member.name }}</font></td></tr>
+  <tr bgcolor="#e8e4dc"><td><font size="1"><b>ACCOUNT TYPE</b></font></td>
+      <td><font size="1" face="Courier New">{{ kind }}</font></td></tr>
+  <tr bgcolor="#e8e4dc"><td><font size="1"><b>OPENING DEPOSIT</b></font></td>
+      <td><font size="1" face="Courier New">{{ deposit }}</font></td></tr>
+ </table>
+ <br>
+ <form method="post" action="/members/{{ member.member_id }}/subaccount/confirm" name="openform">
+  <input type="hidden" name="{{ field_name('account_type') }}" value="{{ kind }}">
+  <input type="hidden" name="{{ field_name('deposit') }}" value="{{ deposit }}">
+  <input type="button" value="Confirm and Open" onclick="document.getElementById('auth').style.display='block'">
+ </form>
+</td></tr></table>
+
+<div id="auth" style="display:none;position:fixed;left:0;top:0;width:100%;height:100%;
+     background:rgba(0,0,0,0.45);z-index:50">
+ <table width="100%" height="100%"><tr><td align="center" valign="middle">
+  <table bgcolor="#d4d0c8" cellpadding="0" cellspacing="0" width="380"
+         style="border:2px outset #d4d0c8"><tr><td>
+   <table width="100%" cellpadding="3" cellspacing="0" bgcolor="{{ inst.accent }}">
+    <tr><td><font color="#ffffff" size="1"><b>&nbsp;AUTHORISE IRREVERSIBLE ACTION</b></font></td></tr>
+   </table>
+   <table cellpadding="10"><tr><td>
+    <font size="1" face="Courier New">OPENING A SUB-ACCOUNT CANNOT BE UNDONE.<br>
+    CONFIRM YOU ARE AUTHORISED TO PROCEED.</font>
+   </td></tr></table>
+   <table cellpadding="8"><tr>
+    <td><input type="button" value="Cancel" onclick="document.getElementById('auth').style.display='none'"></td>
+    <td><input type="button" value="Authorise" onclick="document.openform.submit()"></td>
+   </tr></table>
+  </td></tr></table>
+ </td></tr></table>
+</div>
+{% endblock %}
+{% block fkeys %}F3=Exit&nbsp;&nbsp;F12=Cancel&nbsp;&nbsp;ENTER=Confirm{% endblock %}

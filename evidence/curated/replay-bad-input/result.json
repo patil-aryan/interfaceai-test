@@ -1,0 +1,28 @@
+{
+  "capability_id": "member.lookup_profile_and_savings_balance",
+  "capability_version": "1.0.0",
+  "run_id": "run_8dfe778085",
+  "institution": "pinecrest-cu",
+  "started_at": "2026-09-11T18:07:27.610161Z",
+  "finished_at": "2026-09-11T18:07:27.854923Z",
+  "duration_ms": 244,
+  "steps_total": 7,
+  "steps_completed": 0,
+  "degradations": [],
+  "recoveries": [],
+  "control_events": [],
+  "evidence_dir": "evidence/run_8dfe778085",
+  "status": "failed",
+  "failure": {
+    "classification": "input_invalid",
+    "step_id": null,
+    "step_index": null,
+    "step_intent": null,
+    "expected": "arguments matching the capability's declared inputs",
+    "observed": "member_number='12' does not match ^[0-9]{6}$",
+    "locator_attempts": [],
+    "screenshot_path": null,
+    "snapshot_path": null
+  },
+  "escalated": false
+}

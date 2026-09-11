@@ -1,0 +1,19 @@
+{
+  "capability_id": "member.open_savings_subaccount",
+  "capability_version": "1.0.0",
+  "run_id": "run_49ea5616c1",
+  "institution": "pinecrest-cu",
+  "started_at": "2026-09-11T18:07:40.642382Z",
+  "finished_at": "2026-09-11T18:07:46.515293Z",
+  "duration_ms": 5872,
+  "steps_total": 13,
+  "steps_completed": 7,
+  "degradations": [],
+  "recoveries": [],
+  "control_events": [],
+  "evidence_dir": "evidence/run_49ea5616c1",
+  "status": "business_outcome",
+  "code": "INVALID_DEPOSIT_AMOUNT",
+  "message": "The opening deposit does not meet the minimum required amount or is otherwise invalid for the chosen account type.",
+  "partial_outputs": {}
+}

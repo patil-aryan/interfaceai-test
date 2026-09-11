@@ -1,0 +1,21 @@
+{% set title = "OPEN SUB-ACCOUNT" %}{% extends "_base.html" %}
+{% block screen %}
+<table cellpadding="8"><tr><td>
+ <font size="1"><b>MEMBER:</b> <font face="Courier New">{{ member.member_id }} {{ member.name }}</font></font><br><br>
+ <form method="post">
+  <table cellpadding="4">
+   <tr><td><font size="1"><b>ACCOUNT TYPE . .</b></font></td>
+       <td><select name="{{ field_name('account_type') }}" title="ACCOUNT TYPE">
+             <option value="">-- SELECT --</option>
+             {% for t in types %}<option value="{{ t }}"{% if kind == t %} selected{% endif %}>{{ t }}</option>{% endfor %}
+           </select></td></tr>
+   <tr><td><font size="1"><b>OPENING DEPOSIT</b></font></td>
+       <td><input type="text" name="{{ field_name('deposit') }}" size="12" value="{{ deposit or '' }}"></td>
+       <td><font size="1" color="#404040">MIN 25.00</font></td></tr>
+   <tr><td></td><td><input type="submit" value="Continue"></td></tr>
+  </table>
+ </form>
+ {% if error %}<div class="msg">{{ error }}</div>{% endif %}
+</td></tr></table>
+{% endblock %}
+{% block fkeys %}F3=Exit&nbsp;&nbsp;F12=Cancel&nbsp;&nbsp;ENTER=Continue{% endblock %}

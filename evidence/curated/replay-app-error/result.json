@@ -1,0 +1,28 @@
+{
+  "capability_id": "member.lookup_profile_and_savings_balance",
+  "capability_version": "1.0.0",
+  "run_id": "run_dbfcdfcf3d",
+  "institution": "pinecrest-cu",
+  "started_at": "2026-09-11T18:07:28.262622Z",
+  "finished_at": "2026-09-11T18:07:33.426251Z",
+  "duration_ms": 5163,
+  "steps_total": 7,
+  "steps_completed": 0,
+  "degradations": [],
+  "recoveries": [],
+  "control_events": [],
+  "evidence_dir": "evidence/run_dbfcdfcf3d",
+  "status": "failed",
+  "failure": {
+    "classification": "app_error",
+    "step_id": null,
+    "step_index": null,
+    "step_intent": null,
+    "expected": "a signed-in session before the first step",
+    "observed": "the product's own error screen (TargetNotFound: could not resolve 'USER ID field'; tried: role_name: 0 match(es))",
+    "locator_attempts": [],
+    "screenshot_path": "evidence/run_dbfcdfcf3d/sign-on.png",
+    "snapshot_path": "evidence/run_dbfcdfcf3d/sign-on.txt"
+  },
+  "escalated": false
+}

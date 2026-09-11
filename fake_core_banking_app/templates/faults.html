@@ -1,0 +1,18 @@
+<html><head><title>Fault injection</title>
+<style>body{font-family:system-ui,sans-serif;font-size:14px;margin:24px;max-width:640px;}
+label{display:block;margin:8px 0;} h1{font-size:18px;} code{background:#eee;padding:1px 4px;}</style>
+</head><body>
+<h1>Fault injection</h1>
+<p>Test harness for the automation engine. Not part of the modelled product.</p>
+<form method="post">
+ <label><input type="checkbox" name="force_not_found" {% if faults.force_not_found %}checked{% endif %}> Every lookup returns no match <code>business outcome</code></label>
+ <label><input type="checkbox" name="validation_error" {% if faults.validation_error %}checked{% endif %}> Sub-account form rejects valid input <code>business outcome</code></label>
+ <label><input type="checkbox" name="maintenance_interstitial" {% if faults.maintenance_interstitial %}checked{% endif %}> Unexpected maintenance notice <code>recoverable</code></label>
+ <label><input type="checkbox" name="session_expired" {% if faults.session_expired %}checked{% endif %}> Session has expired <code>recoverable</code></label>
+ <label>Slow response, milliseconds <code>recoverable</code><br>
+   <input type="number" name="slow_response_ms" value="{{ faults.slow_response_ms }}" min="0" step="500"></label>
+ <label><input type="checkbox" name="permission_denied" {% if faults.permission_denied %}checked{% endif %}> Operator lacks privilege <code>hard failure</code></label>
+ <label><input type="checkbox" name="app_error" {% if faults.app_error %}checked{% endif %}> Product returns its error screen <code>hard failure</code></label>
+ <p><button type="submit">Apply</button> <button type="submit" name="clear" value="1">Clear all</button></p>
+</form>
+</body></html>

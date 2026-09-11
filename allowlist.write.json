@@ -1,0 +1,33 @@
+{
+  "name": "local-fixture-write",
+  "hosts": [
+    "127.0.0.1:8081",
+    "localhost:8081"
+  ],
+  "routes": [
+    "/",
+    "/login",
+    "/logout",
+    "/banner",
+    "/nav",
+    "/work",
+    "/members/inquiry",
+    "/members/search",
+    "/members/[0-9]+",
+    "/members/[0-9]+/subaccount/new",
+    "/members/[0-9]+/subaccount/confirm"
+  ],
+  "actions": [
+    "navigate",
+    "fill",
+    "activate",
+    "select",
+    "press",
+    "read",
+    "wait_for",
+    "assert",
+    "dismiss"
+  ],
+  "allow_irreversible": true,
+  "require_approval_for_unattended": true
+}

@@ -1,0 +1,37 @@
+{% set title = "MEMBER SEARCH RESULTS" %}{% extends "_base.html" %}
+{% block screen %}
+<table cellpadding="8" width="100%"><tr><td>
+ <font size="1"><b>SURNAME CONTAINS:</b> <font face="Courier New">{{ surname }}</font>
+ &nbsp;&nbsp;<b>MATCHES:</b> <font face="Courier New">{{ total }}</font>
+ &nbsp;&nbsp;<b>PAGE:</b> <font face="Courier New">{{ page }} OF {{ pages }}</font></font>
+ <br><br>
+ <table cellpadding="3" cellspacing="1" bgcolor="#808080" width="100%">
+  <tr bgcolor="{{ inst.accent }}">
+   <td><font color="#ffffff" size="1"><b>&nbsp;</b></font></td>
+   <td><font color="#ffffff" size="1"><b>{{ inst.member_id_label }}</b></font></td>
+   <td><font color="#ffffff" size="1"><b>NAME</b></font></td>
+   <td><font color="#ffffff" size="1"><b>BRANCH</b></font></td>
+   <td><font color="#ffffff" size="1"><b>STATUS</b></font></td>
+   <td><font color="#ffffff" size="1"><b>ACTION</b></font></td>
+  </tr>
+  {% for m in results %}
+  <tr bgcolor="{{ '#e8e4dc' if loop.index0 % 2 == 0 else '#dcd8d0' }}">
+   <td><font size="1" face="Courier New">{{ first_row + loop.index0 }}</font></td>
+   <td><font size="1" face="Courier New">{{ m.member_id }}</font></td>
+   <td><font size="1" face="Courier New">{{ m.surname }}, {{ m.given }}</font></td>
+   <td><font size="1" face="Courier New">{{ m.branch }}</font></td>
+   <td><font size="1" face="Courier New">{{ m.status }}</font></td>
+   <td><a href="/members/{{ m.member_id }}"><font size="1">SELECT</font></a></td>
+  </tr>
+  {% endfor %}
+ </table>
+ <br>
+ <table cellpadding="2"><tr>
+  {% if page > 1 %}<td><a href="/members/search?surname={{ surname }}&page={{ page - 1 }}"><font size="1">&lt;&lt; PREVIOUS</font></a></td>{% endif %}
+  {% if page < pages %}<td><a href="/members/search?surname={{ surname }}&page={{ page + 1 }}"><font size="1">NEXT &gt;&gt;</font></a></td>{% endif %}
+  <td width="20"></td>
+  <td><a href="/members/inquiry"><font size="1">NEW SEARCH</font></a></td>
+ </tr></table>
+</td></tr></table>
+{% endblock %}
+{% block fkeys %}F3=Exit&nbsp;&nbsp;F7=Prev Page&nbsp;&nbsp;F8=Next Page&nbsp;&nbsp;ENTER=Select{% endblock %}
